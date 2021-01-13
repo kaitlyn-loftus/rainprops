@@ -1,7 +1,10 @@
+################################################################
+# generate results for LoWo21 Table 3
+# basic raindrop properties for common condensibles
+# other than H2O
+################################################################
 import numpy as np
 import pandas as pd
-
-# make table 3
 
 # properties of interest for common condensibles
 c_props = np.genfromtxt('data/condensible_properties2.csv',delimiter=',',
@@ -9,7 +12,7 @@ c_props = np.genfromtxt('data/condensible_properties2.csv',delimiter=',',
 # names of each condensible species to write out
 c_species = ['CH4','NH3','H2O','Fe','SiO2']
 
-# following proportionality of LoWo eq (x)
+# following proportionality of LoWo21 eq (26)
 # r_max ∝ √(σ/ρ_ℓ)
 r_max_rats = (c_props[:,2]/c_props[:,1])**0.5
 # evaporation energy for same radius raindrop

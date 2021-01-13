@@ -1,13 +1,11 @@
+################################################################
+# make LoWo21 Figure 7
+# raindrop evap with varying dry atm composition
+################################################################
 import matplotlib.pyplot as plt
 import numpy as np
 
-dir = 'output/fig07/'
-pl_labels = ['h2','h2-n2_10-90','n2','co2']
-pl_labels2 = [r'H$_2$',r'N$_2$',r'CO$_2$']
-pl_labels3 = [r'CO$_2$',r'N$_2$',r'H$_2$']
-i_r0 = range(3)
-r0s = np.load(dir+'r0s.npy')
-
+# adjust fontsizes for figure size
 plt.rc('font', size=14)          # controls default text sizes
 plt.rc('axes', titlesize=16)     # fontsize of the axes title
 plt.rc('axes', labelsize=14)    # fontsize of the x and y labels
@@ -23,6 +21,12 @@ plt.subplots_adjust(hspace=0.05)
 lw = 2
 
 # load results
+dir = 'output/fig07/'
+pl_labels = ['h2','h2-n2_10-90','n2','co2']
+pl_labels2 = [r'H$_2$',r'N$_2$',r'CO$_2$']
+pl_labels3 = [r'CO$_2$',r'N$_2$',r'H$_2$']
+i_r0 = range(3)
+r0s = np.load(dir+'r0s.npy')
 for i,r0 in enumerate(r0s):
     P_evap_N2 = np.load(dir+'power_evap_norm_'+pl_labels[2]+'_'+str(i)+'.npy')
     P_evap_H2 = np.load(dir+'power_evap_norm_'+pl_labels[0]+'_'+str(i)+'.npy')

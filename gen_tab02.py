@@ -1,7 +1,11 @@
+################################################################
+# generate results for LoWo21 Table 2
+# raindrop evap with varying dry atm composition
+# highlight different effects of composition on evaporation
+################################################################
 import numpy as np
 from src.planet import Planet
 import src.fall as fall
-import src.drop_prop as drop_prop
 import pandas as pd
 
 # set up different atm composition planets
@@ -19,7 +23,7 @@ X_O2[3] = 1. # f_O2 [mol/mol]
 X_CO2[4] = 1. # f_CO2 [mol/mol]
 T_LCL = 275 # [K]
 p_LCL = 7.5e4 # [Pa]
-RH_LCL = 1. # []
+RH_LCL = 1. # [ ]
 # Earth gravity
 R_p = 1. # [R_earth]
 M_p = 1. # [M_earth]
@@ -64,5 +68,5 @@ for i,pl in enumerate(pls):
         f_H_evap = -z_evap/pl.calc_H(0.) #[m/m]
         tab02_list.append([atm_label[i],effects_label[3],t_evap,-z_evap,f_H_evap])
 # convert to dataframe to easily save to csv file
-tab02 = pd.DataFrame(tab02_list,columns=['atm gas','effect','t_evap [s]','z_evap [m]','z_evap/H []'])
+tab02 = pd.DataFrame(tab02_list,columns=['atm gas','effect','t_evap [s]','z_evap [m]','z_evap [H]'])
 tab02.to_csv('tabs/tab02.csv',index=False)

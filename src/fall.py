@@ -26,7 +26,7 @@ def calc_drdz_dTdropdz(z,rT,pl,w=0):
         * drdz [m/m]
         * dTdz [K/m] - raindrop T change with z
     '''
-    # integration should stop before here, but catch odd solver attmepts
+    # integration should stop before here, but catch odd solver attempts
     if rT[0]<=1e-7:
         rT[0] = 1e-7
     if rT[1]>pl.T+5:
@@ -36,24 +36,22 @@ def calc_drdz_dTdropdz(z,rT,pl,w=0):
 
     # set planetary conditions to given altitude z
     pl.z2x4drdz(z)
-    # calc dmdt
-    dmdt = 4.*np.pi*rT[0]*pl.D_c*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(rT[1])/pl.c.R/rT[1])
     # calc dzdt
-    v = w-1*drop_prop.calc_v(rT[0],pl,pl.f_rat,pl.f_C_D)
-    # integration should stop before here, but catch odd solver attmepts
-    if v>-1e-9:
+    v = w-1*drop_prop.calc_v(rT[0],pl,pl.f_rat,pl.f_C_D) # LoWo21 eq (9)
+    if v>-1e-9: # integration should stop before here, but catch odd solver attempts
         v = -1e-9
     # calculate ventilation coefficients
     f = pl.f_vent(rT[0],v,pl)
-    dmdt *= f[0]
+    # calc rate of change of drop mass with time
+    dmdt = 4.*np.pi*rT[0]*pl.D_c*f[0]*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(rT[1])/pl.c.R/rT[1]) # ~ LoWo21 eq (10)
     # convert dmdt to drdt using chain rule
     drdt = dmdt/(4.*np.pi*rT[0]**2*pl.c.ρ(rT[1]))
     # convert drdt to drdz using chain rule
-    drdz = drdt*1./v
+    drdz = drdt*1./v # LoWo21 eq (15)
     # calc mass of drop
     m = 4./3.*np.pi*rT[0]**3*pl.c.ρ(rT[1]) # [kg]
     # calc rate of change of drop T with time
-    dTdt = 1./m/pl.c.c_p*(pl.c.L(rT[1])*dmdt - 4.*np.pi*rT[0]*pl.K*f[1]*(rT[1] - pl.T))
+    dTdt = 1./m/pl.c.c_p*(pl.c.L(rT[1])*dmdt - 4.*np.pi*rT[0]*pl.K*f[1]*(rT[1] - pl.T)) # ~ LoWo21 eq (11)
     # convert dTdt to dTdz via chain rule
     dTdz = dTdt*1./v
     # return appropriate derivatives
@@ -62,20 +60,37 @@ def calc_drdz_dTdropdz(z,rT,pl,w=0):
 
 def δ0(δ,pl,f):
     '''
+    zero function for numerical solver
+    to calculate temperature difference between air and drop
+    in equilibrium when drop evaporating
+    LoWo21 eq (17)
+    inputs:
+        * δ [K] - T_air - T_drop
+        * pl [Planet object]
+        * f [ ] - ventilation factor
+    output:
+        * difference between δ predicted by given δ, pl and given δ [K]
     '''
-    ΔρcΔT = (pl.c.p_sat(pl.T)/pl.T-pl.c.p_sat(pl.T-δ)/(pl.T-δ))/δ/pl.c.R
-    A = (pl.K*f[1]+pl.c.L(pl.T)*pl.D_c*ΔρcΔT*f[0])
-    B = pl.D_c*pl.c.L(pl.T)*f[0]*((1-pl.RH)*pl.c.p_sat(pl.T)/pl.c.R/pl.T)
-    return δ - B/A
+    δ_pred = (pl.c.p_sat(pl.T-δ)/(pl.T-δ)-pl.RH*pl.c.p_sat(pl.T)/pl.T)
+    δ_pred *= pl.D_c*f[0]*pl.c.L(pl.T)/pl.c.R/pl.K/f[1]
+    return δ - δ_pred
 
 def calc_δ_simple(pl,f):
     '''
+    analytically estimate temperature difference between air and drop
+    in equilibrium when drop evaporating
+    LoWo21 eqs (17)-(18)
+    inputs:
+        * pl [Planet object]
+        * f [ ] - ventilation factor
+    output:
+        * δ [K] - temperature difference between air and drop
+                  in equilibrium when drop evaporating
     '''
     δ_guess =  (pl.T-pl.T_LCL)/2.
-    ΔρcΔT = (pl.c.p_sat(pl.T)/pl.T-pl.c.p_sat(pl.T-δ_guess)/(pl.T-δ_guess))/δ_guess/pl.c.R
-    A = (pl.K*f[1]+pl.c.L(pl.T)*pl.D_c*ΔρcΔT*f[0])
-    B = pl.D_c*pl.c.L(pl.T)*f[0]*((1-pl.RH)*pl.c.p_sat(pl.T)/pl.c.R/pl.T)
-    return B/A
+    δ = (pl.c.p_sat(pl.T-δ_guess)/(pl.T-δ_guess)-pl.RH*pl.c.p_sat(pl.T)/pl.T)
+    δ *= pl.D_c*f[0]*pl.c.L(pl.T)/pl.c.R/pl.K/f[1]
+    return δ
 
 
 def calc_dtdz_drdz(z,r,pl,w):
@@ -85,31 +100,34 @@ def calc_dtdz_drdz(z,r,pl,w):
     inputs:
         * z [m] - altitude, integrating wrt z
         * tr [array] - integrated quantities
-            - tr[0] = time [s] t = 0 @ z = z_LCL
+            - tr[0] = time [s] (t = 0 @ z = z_LCL)
             - tr[1] = r [m] - equiv r
         * pl [Planet object]
         * w [m/s] - vertical wind speed
     output:
         * dtdz [s/m]
-        * drdz [K/m]
+        * drdz [m/m]
     '''
-    if r[1]<=1e-7:
+    if r[1]<=1e-7: # integration should stop before here, but catch odd solver attempts
         r[1] = 1e-7
-    pl.z2x4drdz(z)
-    v = w-1*drop_prop.calc_v(r[1],pl,pl.f_rat,pl.f_C_D)
+    pl.z2x4drdz(z) # set planetary conditions to given altitude z
+    v = w-1*drop_prop.calc_v(r[1],pl,pl.f_rat,pl.f_C_D) # LoWo21 eq (9)
     if v>-1e-9:
         v = -1e-9
-    f = pl.f_vent(r[1],v,pl)
+    f = pl.f_vent(r[1],v,pl) # [ ] ventilation factor
+    # calculate T_drop
     if pl.T-pl.T_LCL<=0.:
         δ = 0.
     else:
-        δ = brentq(δ0,1e-6,pl.T-pl.T_LCL,args=(pl,f))
-    T_drop = pl.T - δ
-
-    dmdt = 4.*np.pi*r[1]*pl.D_c*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(T_drop)/pl.c.R/T_drop)
-    dmdt *= f[0]
+        δ = brentq(δ0,1e-6,pl.T-pl.T_LCL,args=(pl,f)) # LoWo21 eq (17)
+        # δ = calc_δ_simple(pl,f)
+    T_drop = pl.T - δ # [K]
+    # calc rate of change of drop mass with time
+    dmdt = 4.*np.pi*r[1]*pl.D_c*f[0]*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(T_drop)/pl.c.R/T_drop) # ~ LoWo21 eq (10)
+    # convert dmdt to drdt using chain rule
     drdt = dmdt/(4.*np.pi*r[1]**2*pl.c.ρ(T_drop))
-    drdz = drdt*1./v
+    drdz = drdt*1./v # LoWo21 eq (15)
+    # return appropriate derivatives
     return np.array([1./v,drdt*1./v])
 
 def calc_dtdz_drdz_dTdz(z,trT,pl,w):
@@ -129,22 +147,21 @@ def calc_dtdz_drdz_dTdz(z,trT,pl,w):
         * drdz [m/m]
         * dTdz [K/m] - raindrop T change with z
     '''
-    if trT[1]<=1e-7:
+    if trT[1]<=1e-7: # integration should stop before here, but catch odd solver attempts
         trT[1] = 1e-7
-    pl.z2x4drdz(z)
+    pl.z2x4drdz(z) # set planetary conditions to given altitude z
 
-    dmdt = 4.*np.pi*trT[1]*pl.D_c*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(trT[2])/pl.c.R/trT[2])
-
-    v = w-1*drop_prop.calc_v(trT[1],pl,pl.f_rat,pl.f_C_D)
-    if v>-1e-9:
+    v = w-1*drop_prop.calc_v(trT[1],pl,pl.f_rat,pl.f_C_D) # LoWo21 eq (9)
+    if v>-1e-9: # integration should stop before here, but catch odd solver attempts
         v = -1e-9
-    f = pl.f_vent(trT[1],v,pl)
-    dmdt *= f[0]
-    drdt = dmdt/(4.*np.pi*trT[1]**2*pl.c.ρ(trT[2]))
-    drdz = drdt*1./v
-    m = 4./3.*np.pi*trT[1]**3*pl.c.ρ(trT[2])
-    dTdt = 1./m/pl.c.c_p*(pl.c.L(trT[2])*dmdt - 4.*np.pi*trT[1]*pl.K*f[1]*(trT[2] - pl.T))
+    f = pl.f_vent(trT[1],v,pl) # [ ] ventilation factor
+    dmdt = 4.*np.pi*trT[1]*pl.D_c*f[0]*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(trT[2])/pl.c.R/trT[2]) # ~ LoWo21 eq (10)
+    drdt = dmdt/(4.*np.pi*trT[1]**2*pl.c.ρ(trT[2])) # chain rule
+    drdz = drdt*1./v # LoWo21 eq (15)
+    m = 4./3.*np.pi*trT[1]**3*pl.c.ρ(trT[2]) # [kg] drop mass
+    dTdt = 1./m/pl.c.c_p*(pl.c.L(trT[2])*dmdt - 4.*np.pi*trT[1]*pl.K*f[1]*(trT[2] - pl.T)) # ~ LoWo21 eq (11)
     dTdz = dTdt*1./v
+    # return appropriate derivatives
     return np.array([1./v,drdz,dTdz])
 
 
@@ -168,29 +185,33 @@ def calc_drzvdt_w_a(t,rzvT,pl):
         * dvdt [m/s^2]
         * dTdt [K/s]
     '''
-    if rzvT[0]<=1e-7:
-        rzvT[0] = 1e-7
-    pl.z2x4drdz(rzvT[1])
 
-    if rzvT[2]>-1e-9:
+    if rzvT[0]<=1e-7: # integration should stop before here, but catch odd solver attempts
+        rzvT[0] = 1e-7
+    pl.z2x4drdz(rzvT[1]) # set planetary conditions to given altitude z
+
+    if rzvT[2]>-1e-9: # integration should stop before here, but catch odd solver attempts
         rzvT[2] = -1e-9
 
-    if rzvT[3]>pl.T:
+    if rzvT[3]>pl.T: # integration should stop before here, but catch odd solver attempts
         rzvT[3] = pl.T
 
-    f = pl.f_vent(rzvT[0],rzvT[2],pl)
-    dmdt = 4.*np.pi*rzvT[0]*pl.D_c*f[0]*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(rzvT[3])/pl.c.R/rzvT[3])
+    f = pl.f_vent(rzvT[0],rzvT[2],pl) # [ ] ventilation factor
+
+    dmdt = 4.*np.pi*rzvT[0]*pl.D_c*f[0]*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(rzvT[3])/pl.c.R/rzvT[3]) # ~ LoWo21 eq (10)
     drdt = dmdt/(4.*np.pi*rzvT[0]**2*pl.c.ρ(rzvT[3]))
-    m = 4./3.*np.pi*rzvT[0]**3*pl.c.ρ(rzvT[3])
-    dTdt = 1./m/pl.c.c_p*(pl.c.L(rzvT[3])*dmdt - 4.*np.pi*rzvT[0]*pl.K*f[1]*(rzvT[3] - pl.T))
+    m = 4./3.*np.pi*rzvT[0]**3*pl.c.ρ(rzvT[3]) # [kg], raindrop mass
+    dTdt = 1./m/pl.c.c_p*(pl.c.L(rzvT[3])*dmdt - 4.*np.pi*rzvT[0]*pl.K*f[1]*(rzvT[3] - pl.T)) # ~ LoWo21 eq (11)
+    # calculate raindrop axis ratio [ ]
     try:
         rat = pl.f_rat(rzvT[0],pl,rzvT[2])
     except:
         rat = 1.
         print('rat failed')
-    C_D = pl.f_C_D(rzvT[0],rzvT[2],pl)
-    a = -pl.g - 3./8*rzvT[2]**2*rat**(-2./3)/rzvT[0]*pl.ρ/pl.c.ρ(rzvT[3])*C_D*np.sign(rzvT[2])/(drop_prop.calc_Cc(rzvT[0],pl))
-
+    C_D = pl.f_C_D(rzvT[0],rzvT[2],pl) # [ ] calculate drag coefficient
+    # calculate acceleration from Newton's 2nd law
+    a = -pl.g - 3./8*rzvT[2]**2*rat**(-2./3)/rzvT[0]*pl.ρ/pl.c.ρ(rzvT[3])*C_D*np.sign(rzvT[2])/(drop_prop.calc_Cc(rzvT[0],pl)) # [m/s2]
+    # return appropriate derivatives
     return np.array([drdt,rzvT[2],a,dTdt])
 
 def calc_dzdt_w_a(t,zv,pl):
@@ -208,32 +229,34 @@ def calc_dzdt_w_a(t,zv,pl):
         * dzdt [m/s]
         * dvdt [m/s^2]
     '''
-    pl.z2x4drdz(zv[0])
-    if zv[1]>-1e-9:
+    pl.z2x4drdz(zv[0]) # set planetary conditions to given altitude z
+    if zv[1]>-1e-9: # integration should stop before here, but catch odd solver attempts
         zv[1] = -1e-9
-
+    # calculate raindrop axis ratio [ ]
     try:
         rat = pl.f_rat(pl.r,pl,zv[1])
     except:
         rat = 1.
-    C_D = pl.f_C_D(pl.r,zv[1],pl)
-    a = -pl.g - 3./8*zv[1]**2*rat**(-2./3)/pl.r*pl.ρ/pl.c.ρ(pl.T)*C_D/drop_prop.calc_Cc(pl.r,pl)*np.sign(zv[1])
+    C_D = pl.f_C_D(pl.r,zv[1],pl) # [ ] calculate drag coefficient
+    # calculate acceleration from Newton's 2nd law
+    a = -pl.g - 3./8*zv[1]**2*rat**(-2./3)/pl.r*pl.ρ/pl.c.ρ(pl.T)*C_D/drop_prop.calc_Cc(pl.r,pl)*np.sign(zv[1]) # [m/s2]
+    # return appropriate derivatives
     return np.array([zv[1],a])
 
 def calc_dtdz_drdz_3pl(z,trT,pl,pl_F,pl_v,w):
     '''
     differential equations governing the evaporation of the falling raindrop
     dT_drop/dt is coupled rather than assuming equilibrium T_drop value
-    all input of three different Planet objects to access different aspects of composition
+    input three different Planet objects to access different aspects of composition
     inputs:
         * z [m] - altitude, integrating wrt z
         * trT [array] - integrated quantities
             - trT[0] = t [s] - t = 0 @ z = z_LCL
             - trT[1] = r [m] - equiv r
             - trT[2] = T_drop [K] raindrop temperature
-        * pl [Planet object] - governing atmospheric structure (H in table 2)
-        * pl_F [Planet object] - governing molecule and heat transport from drop (transport in table 2)
-        * pl_v [Planet object] - governing raindrop velocity (v_T in table 2)
+        * pl [Planet object] - governing atmospheric structure (H in LoWo21 Table 2)
+        * pl_F [Planet object] - governing molecule and heat transport from drop (transport in LoWo21 Table 2)
+        * pl_v [Planet object] - governing raindrop velocity (v_T in LoWo21 Table 2)
         * w [m/s] - vertical wind speed
     output:
         * dt/dz [s/m]
@@ -241,113 +264,94 @@ def calc_dtdz_drdz_3pl(z,trT,pl,pl_F,pl_v,w):
         * dTdz [K/m] - raindrop T change with z
 
     '''
-    if trT[1]<=1e-7:
+    if trT[1]<=1e-7: # integration should stop before here, but catch odd solver attempts
         trT[1] = 1e-7
-    pl.z2x4drdz(z)
-    K = pl_F.calc_K(pl.T)
-    D_c = pl_F.calc_D_c(pl.T,pl.p)
-
-
-    v = w-1*drop_prop.calc_v(trT[1],pl_v,pl_v.f_rat,pl_v.f_C_D)
-    if v>-1e-9:
+    pl.z2x4drdz(z) # set planetary conditions to given altitude z
+    # calc K and D_c using pl_F
+    K = pl_F.calc_K(pl.T) # [W/K]
+    D_c = pl_F.calc_D_c(pl.T,pl.p) # [m2/s]
+    # calc v using pl_v
+    v = w-1*drop_prop.calc_v(trT[1],pl_v,pl_v.f_rat,pl_v.f_C_D) # LoWo21 eq (9)
+    if v>-1e-9: # integration should stop before here, but catch odd solver attempts
         v = -1e-9
-    f = pl.f_vent(trT[1],v,pl_v)
-
-    dmdt = 4.*np.pi*trT[1]*D_c*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(trT[2])/pl.c.R/trT[2])
-    dmdt *= f[0]
-    drdt = dmdt/(4.*np.pi*trT[1]**2*pl.c.ρ(trT[2]))
-    drdz = drdt*1./v
-    m = 4./3.*np.pi*trT[1]**3*pl.c.ρ(trT[2])
-    dTdt = 1./m/pl.c.c_p*(pl.c.L(trT[2])*dmdt - 4.*np.pi*trT[1]*K*f[1]*(trT[2] - pl.T))
-    dTdz = dTdt*1./v
+    f = pl.f_vent(trT[1],v,pl_v) # [ ] ventilation factor, calc with pl_v
+    # calc drdt and dTdt with pl
+    dmdt = 4.*np.pi*trT[1]*D_c*f[0]*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(trT[2])/pl.c.R/trT[2]) # ~ LoWo21 eq (10)
+    drdt = dmdt/(4.*np.pi*trT[1]**2*pl.c.ρ(trT[2])) # chain rule
+    drdz = drdt*1./v # LoWo21 eq (15)
+    m = 4./3.*np.pi*trT[1]**3*pl.c.ρ(trT[2]) # [kg] raindrop mass
+    dTdt = 1./m/pl.c.c_p*(pl.c.L(trT[2])*dmdt - 4.*np.pi*trT[1]*K*f[1]*(trT[2] - pl.T)) # ~ LoWo21 eq (11)
+    dTdz = dTdt*1./v # chain rule
+    # return appropriate derivatives
     return np.array([1./v,drdt*1./v,dTdz])
 
 # for Titan validation
-# could be written better
-def calc_dm12dz_dTdropdz(z,m1m2T,pl,w=0):
-    '''
-    m1m2T[0] = m1
-    m1m2T[1] = m2
-    m1m2T[2] = T
-    '''
-    if m1m2T[0]<0:
-        m1m2T[0] = 0.
-    if m1m2T[1]<0:
-        m1m2T[1] = 0.
-
-    m = m1m2T[0] + m1m2T[1] # [kg] mass of drop
-    pl.c.ρ_const = (m1m2T[0]/m/pl.c1.ρ(m1m2T[2]) + m1m2T[1]/m/pl.c2.ρ(m1m2T[2]))**(-1)
-    r = (m/pl.c.ρ_const*3./4/np.pi)**(1./3)
-    X1 = m1/pl.c1.μ/(m1/pl.c1.μ + m2/pl.c2.μ)
-    X2 = 1. - X2
-    c_pℓ = m1m2T[0]/m*pl.c1.c_p + m1m2T[1]/m*pl.c2.c_p
-
-    if r<=1e-7:
-        r = 1e-7
-    pl.z2x4drdz(z)
-    dm1dt = 4.*np.pi*r*pl.D_c1*(pl.p_c1/pl.c1.R/pl.T - pl.c1.calc_γ(m1m2T[2],X1,X2)*X1*pl.c1.p_sat(m1m2T[2])/pl.c1.R/m1m2T[2])
-    dm2dt = 4.*np.pi*r*pl.D_c2*(pl.p_c2/pl.c2.R/pl.T - pl.c2.calc_γ(m1m2T[2],X1,X2)*X2*pl.c2.p_sat(m1m2T[2])/pl.c2.R/m1m2T[2])
-
-    v = w-1*drop_prop.calc_v(r,pl,pl.f_rat,pl.f_C_D)
-    if v>-1e-9:
-        v = -1e-9
-    pl.D_c = pl.D_c1
-    f1 = pl.f_vent(r,v,pl)
-    pl.D_c = pl.D_c2
-    f2 = pl.f_vent(r,v,pl)
-    dm1dt *= f1[0]
-    dm2dt *= f2[0]
-
-    dTdt = 1./m/c_pℓ*(pl.c1.L(m1m2T[2])*dm1dt + pl.c2.L(m1m2T[2])*dm2dt- 4.*np.pi*r*pl.K*f1[1]*(m1m2T[2] - pl.T))
-    dTdz = dTdt*1./v
-    return np.array([dm1dz,dm2dz,dTdz])
-
+# could be written better...
 def calc_dtdz_dm12dt_dTdropdt(t,zm1m2T,pl,w=0):
     '''
-    zm1m2T[0] = z
-    zm1m2T[1] = m1
-    zm1m2T[2] = m2
-    zm1m2T[3] = T
+    differential equations governing the evaporation of the falling raindrop
+    dT_drop/dt is coupled rather than assuming equilibrium T_drop value
+    inputs:
+        * t [s] - altitude, integrating wrt t
+        * zm1m2T [array] - integrated quantities
+            zm1m2T[0] = z [m] altitude
+            zm1m2T[1] = m1 [kg] raindrop mass of condensible 1
+            zm1m2T[2] = m2 [kg] raindrop mass of condensible 2
+            zm1m2T[3] = T_drop [K] raindrop temperature
+        * pl [Planet object]
+        * w [m/s] - vertical wind speed
+    output:
+        * dtdt [m/s] - v
+        * dm1dt [kg/s] - raindrop condensible 1 mass change with z
+        * dm2dt [kg/s] - raindrop condensible 2 mass change with z
+        * dTdt [K/s] - raindrop T change with z
     '''
+    # integration should stop before here, but catch odd solver attempts
     if zm1m2T[1]<0:
         zm1m2T[1] = 0.
     if zm1m2T[2]<0:
         zm1m2T[2] = 0.
 
     m = zm1m2T[1] + zm1m2T[2] # [kg] mass of drop
-    pl.c.ρ_avg = (zm1m2T[1]/m/pl.c1.ρ(zm1m2T[3]) + zm1m2T[2]/m/pl.c2.ρ(zm1m2T[3]))**(-1)
-    r = (m/pl.c.ρ_avg*3./4/np.pi)**(1./3)
-    X1 = zm1m2T[1]/pl.c1.μ/(zm1m2T[1]/pl.c1.μ + zm1m2T[2]/pl.c2.μ)
-    X2 = 1. - X1
-    c_pℓ = zm1m2T[1]/m*pl.c1.c_p + zm1m2T[2]/m*pl.c2.c_p
+    pl.c.ρ_avg = (zm1m2T[1]/m/pl.c1.ρ(zm1m2T[3]) + zm1m2T[2]/m/pl.c2.ρ(zm1m2T[3]))**(-1) # [kg/m3] avg between components, Graves+ (2008) eq (A.7)
+    r = (m/pl.c.ρ_avg*3./4/np.pi)**(1./3) # [m] equiv radius of drop
+    X1 = zm1m2T[1]/pl.c1.μ/(zm1m2T[1]/pl.c1.μ + zm1m2T[2]/pl.c2.μ) # [mol/mol] drop liquid mole concentration of component 1
+    # X1 + X2 = 1 =>
+    X2 = 1. - X1 # [mol/mol], liquid mole concentration of component 2
+    c_pℓ = zm1m2T[1]/m*pl.c1.c_p + zm1m2T[2]/m*pl.c2.c_p # [J/kg/K] avg between components
 
-    if r<=1e-7:
+    if r<=1e-7: # integration should stop before here, but catch odd solver attempts
         r = 1e-7
-    pl.z2x4drdz_12(zm1m2T[0])
+    pl.z2x4drdz_12(zm1m2T[0]) # set planetary conditions to given altitude z
 
+    # ~ LoWo21 eq (10); follow Graves+ (2008) for accounting for 2 species
     if pl.is_Graves:
-        Tf = (zm1m2T[3]+pl.T)/2.
+        # Graves+ (2008) eq (1)
+        # difference from LoWo21 is Graves+ (2008) approxes conversion of ρ to p with an avg air-raindrop T instead of separate Ts
+        Tf = (zm1m2T[3]+pl.T)/2. # [K]
         dm1dt = 4.*np.pi*r*pl.D_c1/Tf*(pl.p_c1/pl.c1.R - pl.c1.calc_γ(zm1m2T[3],X1,X2)*X1*pl.c1.p_sat(zm1m2T[3])/pl.c1.R)
         dm2dt = 4.*np.pi*r*pl.D_c2/Tf*(pl.p_c2/pl.c2.R - pl.c2.calc_γ(zm1m2T[3],X1,X2)*X2*pl.c2.p_sat(zm1m2T[3])/pl.c2.R)
     else:
         dm1dt = 4.*np.pi*r*pl.D_c1*(pl.p_c1/pl.c1.R/pl.T - pl.c1.calc_γ(zm1m2T[3],X1,X2)*X1*pl.c1.p_sat(zm1m2T[3])/pl.c1.R/zm1m2T[3])
         dm2dt = 4.*np.pi*r*pl.D_c2*(pl.p_c2/pl.c2.R/pl.T - pl.c2.calc_γ(zm1m2T[3],X1,X2)*X2*pl.c2.p_sat(zm1m2T[3])/pl.c2.R/zm1m2T[3])
 
-    v = w-1*drop_prop.calc_v(r,pl,pl.f_rat,pl.f_C_D)
-    if v>-1e-9:
+    v = w-1*drop_prop.calc_v(r,pl,pl.f_rat,pl.f_C_D) # LoWo21 eq (9)
+    if v>-1e-9: # integration should stop before here, but catch odd solver attempts
         v = -1e-9
+    # calculate ventilation coefficients
     pl.D_c = pl.D_c1
     f1 = pl.f_vent(r,v,pl)
     pl.D_c = pl.D_c2
     f2 = pl.f_vent(r,v,pl)
+    # account for f_vent_mol in dmdts
     dm1dt *= f1[0]
     dm2dt *= f2[0]
-
+    # ~ LoWo21 eq (11); Graves+ (2008) eq (2); account for both species
     dTdt = 1./m/c_pℓ*(pl.c1.L(zm1m2T[3])*dm1dt + pl.c2.L(zm1m2T[3])*dm2dt- 4.*np.pi*r*pl.K*f1[1]*(zm1m2T[3] - pl.T))
+    # return appropriate derivatives
     return np.array([v,dm1dt,dm2dt,dTdt])
 
-# with standard assumptions to simplify calculations
-
+# with "standard" assumptions to simplify calculations
 def calc_drdt(r,pl):
     '''
     calculate the evaporation (condensation) of the falling rain drop
@@ -382,7 +386,7 @@ def calc_drdz(z,r,pl,w=0):
     F_heat = (pl.c.L(pl.T)/pl.c.R/pl.T - 1.)*pl.c.L(pl.T)/pl.K/pl.T*pl.c.ρ(pl.T)
     # diffusion contribution from needing to diffuse away (toward) drop
     F_mol = pl.c.R*pl.T/pl.D_c/pl.c.p_sat(pl.T)*pl.c.ρ(pl.T)
-    # combine
+
     v = w-1*drop_prop.calc_v(r[0],pl,pl.f_rat,pl.f_C_D)
     if v>-1e-9:
         v = -1e-9
@@ -398,7 +402,7 @@ def integrate_fall(pl,r0,dr=1e-6,w=0,atol=1e-9,rtol=1e-5,is_lite=False,z_end=Non
     '''
     integrate the fall of raindrop from cloud base (z_LCL)
     integrate drdz with option to couple integration with dTdropdz
-    use implict Runge Kutta of order 5 (Radau)
+    use implicit Runge Kutta of order 5 (Radau)
     https://docs.scipy.org/doc/scipy/reference/generated/scipy.integrate.solve_ivp.html#scipy.integrate.solve_ivp
 
     integrate downward in z until drop hits the ground (z = z_end)
@@ -445,7 +449,7 @@ def integrate_fall(pl,r0,dr=1e-6,w=0,atol=1e-9,rtol=1e-5,is_lite=False,z_end=Non
     # fun, t0, y0, t_bound
     # where y is being integrated over t given fun of dy/dt starting from y = y0 and t = t0
     # must use functools and lambda function set up because of how scipy's OdeSolver class
-    # is written and how numerical Jacobian is calculated for implict solvers
+    # is written and how numerical Jacobian is calculated for implicit solvers
     if is_integrate_Tdrop:
         radau_drdz = functools.partial(calc_drdz_dTdropdz,pl=pl,w=w)
         y_initial_conditions = np.array([r0,pl.T_LCL])
@@ -456,7 +460,7 @@ def integrate_fall(pl,r0,dr=1e-6,w=0,atol=1e-9,rtol=1e-5,is_lite=False,z_end=Non
     # if z to end integration at not specified, make assumptions based on
     # whether z inputted at LCL (gas planet) or surface (terrestrial)
     # also specify first step (letting scipy auto-calculate sometimes leads to errors
-    # because of how atmospheric functions are defined )
+    # because of how atmospheric functions are defined)
     if z_end==None:
         if pl.z_LCL==0.:
             first_step = pl.calc_H(0.)/5.
@@ -527,9 +531,9 @@ def integrate_fall_w_t_w_3pl(pl,pl_v,pl_F,r0,dr=1e-6,w=0,atol=1e-9,rtol=1e-5,is_
     track three different Planet object to account for different aspects of composition in raindrop falling and evaporation
     y[0] = t, y[1] = r
     (new) inputs:
-        * pl [Planet object] - governing atmospheric structure (H in table 2)
-        * pl_F [Planet object] - governing molecule and heat transport from drop (transport in table 2)
-        * pl_v [Planet object] - governing raindrop velocity (v_T in table 2)
+        * pl [Planet object] - governing atmospheric structure (H in LoWo21 Table 2)
+        * pl_F [Planet object] - governing molecule and heat transport from drop (transport in LoWo21 Table 2)
+        * pl_v [Planet object] - governing raindrop velocity (v_T in LoWo21 Table 2)
     '''
 
 
@@ -582,6 +586,7 @@ def integrate_fall_w_a(pl,r0,dr=1e-6,atol=1e-9,rtol=1e-5,is_lite=False,f_v0_v_te
     radau_drzvdt_w_a = functools.partial(calc_drzvdt_w_a,pl=pl)
 
     # because integrating in t, not z, need to make an "event" for when z=0 if planet has a surface to stop integration
+    # see scipy doc for how events + t_span work in detail
     if pl.z_LCL==0.:
         events = [evap0]
     else:
@@ -605,7 +610,7 @@ def integrate_fall_w_a(pl,r0,dr=1e-6,atol=1e-9,rtol=1e-5,is_lite=False,f_v0_v_te
 def integrate_2_vterm_w_a(pl,r0,dr=1e-6,atol=1e-9,rtol=1e-5,is_lite=False,f_v0_v_term=0.,f_vterm=1.):
     '''
     integrate falling drop from cloud base (z_LCL) wrt t, with v(t) not v_T
-    evaporation is turned off because simply trying to account for v_T assumption effect 
+    evaporation is turned off because simply trying to account for v_T assumption effect
     y[0] = z [m], y[1] = v [m/s]
     (new) inputs:
         * f_v0_v_term [] - fraction of r0 terminal velocity set initial v condition
@@ -674,12 +679,13 @@ def integrate_fall_w_t_T_2condensibles(pl,m10,m20,z_start,dr=1e-6,w=0,atol=1e-9,
         return y[0]
     z0.terminal = True
 
+    # integrate forward in time until drop hits the ground
+    # or gets so small that it ceases being a "drop" (r < dr)
     events = [evap0,z0]
 
 
     radau_dtdz_dm12dt_dTdropdt = functools.partial(calc_dtdz_dm12dt_dTdropdt,pl=pl,w=w)
-    # integrate forward in time until drop hits the ground
-    # or gets so small that it ceases being a "drop" (r < dr)
+
     first_step = 20.
     pl.z2x4drdz_12(z_start)
 
@@ -692,14 +698,16 @@ def integrate_fall_w_t_T_2condensibles(pl,m10,m20,z_start,dr=1e-6,w=0,atol=1e-9,
     return sol
 
 ##################################################
-# SMALLEST RAINDROP
+# FUNCTIONS FOR SMALLEST RAINDROP (r_min in LoWo21)
 ##################################################
 
 def calc_smallest_raindrop(pl,dr=1e-6,w=0,z_end=None,is_integrate_Tdrop=True):
     '''
-    determine minimum raindrop which survives to surface
+    determine smallest raindrop size which survives to surface
     above some minimum size
     via bisection (woot high tech)
+    see LoWo21 Section 3.2
+    note the terminology here differs from LoWo21 (r_smallest here = r_min in LoWo21)
     inputs:
         * pl [Planet object]
         * (optional) dr [m] - minimum raindrop radius before considered fully evaporated,
@@ -709,7 +717,6 @@ def calc_smallest_raindrop(pl,dr=1e-6,w=0,z_end=None,is_integrate_Tdrop=True):
     outputs:
         * r_smallest [m] - smallest raindrop size at cloud deck which survives to surface
         * int_descrip [int] - integer to signal potential edge cases
-
     '''
     r_smallest = None
     int_descrip = None
@@ -718,7 +725,6 @@ def calc_smallest_raindrop(pl,dr=1e-6,w=0,z_end=None,is_integrate_Tdrop=True):
     # maximum stable raindrop size
     # from Rayleigh-Taylor instability, ℓ_RT = 0.5πa
     r_max = drop_prop.calc_r_max_RT(pl,np.pi/2.)
-    is_atm_ok = check_is_atm_ok(pl)
     # smallest r to try
     # if there is vertical wind, adjustments need to be made from using dr
     if v_t_w_0(dr,w,pl)<0:
@@ -728,7 +734,8 @@ def calc_smallest_raindrop(pl,dr=1e-6,w=0,z_end=None,is_integrate_Tdrop=True):
     else:
         r_min = brentq(v_t_w_0,dr,r_max,args=(w,pl))
 
-    # confirm atm meets criteria for smallest raindrop q to make sense
+    # confirm atm meets criteria for smallest raindrop to make sense
+    is_atm_ok = check_is_atm_ok(pl)
     if not is_atm_ok:
         r_smallest = None
         int_descrip = -3
@@ -747,6 +754,7 @@ def calc_smallest_raindrop(pl,dr=1e-6,w=0,z_end=None,is_integrate_Tdrop=True):
             else:
                 int_descrip = 0
     # binary search to locate r_smallest
+    # (this is slow... but patience is a virtue)
     if int_descrip==0:
         r_smallest_succeed = r_max
         r_largest_fail = dr
@@ -769,7 +777,6 @@ def check_is_survive(sol):
     '''
     check whether raindrop survived until specified end t or z
     (depending on what integrating)
-    check last time integrated to
     input:
         * sol [output of ivp solver]
     output:
@@ -783,11 +790,11 @@ def check_is_survive(sol):
 
 def calc_last_z(sol):
     '''
-    ccheck last altitude integrated to
+    check last altitude integrated to
     input:
         * sol [output of ivp solver]
     output:
-        * last_t [s] - last time integrated to
+        * last_z [s] - last altitude integrated to
     '''
     if sol.status==0:
         last_z = 0.0
@@ -841,7 +848,7 @@ def calc_t2vterm(sol,pl):
     return last_t
 
 ##################################################
-# MISC
+# MISC. FUNCTIONS
 ##################################################
 
 def check_is_atm_ok(pl):
@@ -867,4 +874,4 @@ def v_t_w_0(r,w,pl):
     output:
         * difference between terminal velocity from inputted r and terminal velocity desired from input w [m/s]
     '''
-    return w-1*drop_prop.calc_v(r,pl,pl.f_rat,pl.f_C_D)+1e-7
+    return w-1*drop_prop.calc_v(r,pl,pl.f_rat,pl.f_C_D)+1e-7 # (1e-7 gives a cushion to prevent numerical errors)

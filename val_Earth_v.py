@@ -1,23 +1,30 @@
+################################################################
+# calculate and make LoWo21 Figure S4
+# validate raindrop velocity against Earth obs and empirical
+# relationships
+################################################################
 import src.drop_prop as drop_prop
 import numpy as np
 import matplotlib.pyplot as plt
 from src.planet import Planet
 
-
+# set up Earth planet
+# following Beard (1976)
 X = np.zeros(5) # composition
 X[2] = 0.8 # f_N2  [mol/mol]
-X[3] = 0.2
+X[3] = 0.2 # f_O2 [mol/mol]
 T_surf = 293.15 # [K]
 p_surf = 1.01325e5 # [Pa]
-RH_surf = 0.5 # []
+RH_surf = 0.5 # [ ]
 R_p = 1. # [R_earth]
 M_p = 1. # [M_earth]
 pl = Planet(R_p,T_surf,p_surf,X,'h2o',RH_surf,M_p)
-pl.z2x4drdz(0.)
+pl.z2x4drdz(0.) # set conditions to surface
 
-n = 100
-rs = np.logspace(-6,np.log10(7.25e-3/2.),n)
-v_B = np.zeros(n)
+n = 100 # number of r values
+rs = np.logspace(-6,np.log10(7.25e-3/2.),n) # [m]
+# set up empty arrays for velocities calculated using different methods
+v_B = np.zeros(n) # Beard (1976)
 v_Lorenz = np.zeros(n)
 v_Lorenz2 = np.zeros(n)
 v_Holzer = np.zeros(n)
@@ -26,6 +33,7 @@ v_Ganser_Newton = np.zeros(n)
 v_sphere = np.zeros(n)
 v_Loth = np.zeros(n)
 
+# calculate v(r) using different methods, mainly different C_D parameterizations
 for i,r in enumerate(rs):
     v_B[i] = drop_prop.calc_v_Earth_Beard(r,pl)
     v_Lorenz[i] = drop_prop.calc_v(r,pl,pl.f_rat,drop_prop.calc_C_D_Lorenz)
@@ -37,15 +45,15 @@ for i,r in enumerate(rs):
     v_Loth[i] = drop_prop.calc_v(r,pl,pl.f_rat,drop_prop.calc_C_D_Loth)
 
 
+# load in experimental data
 gunn49 = np.genfromtxt('data/gunn1949_r_m_v_mpers.csv',delimiter=',')
 best50 = np.genfromtxt('data/best1950.csv',delimiter=',')
 
+# make plot
 plt.plot(rs*1e3,v_Loth,c='indigo',lw=3,label='this work')
 plt.plot(rs*1e3,v_B,c='plum',ls='--',lw=2,label='Beard (1976)')
 plt.scatter(gunn49[:,0]*1e3,gunn49[:,1],c='plum',label='Gunn & Kinzer (1949)',marker='1',zorder=10)
 plt.scatter(best50[:,0]/2.,best50[:,1],c='plum',label='Best (1950)',marker='+',zorder=10)
-# plt.xscale('log')
-# plt.yscale('log')
 plt.legend()
 plt.ylabel(r'$v_\mathrm{T}$ [m s$^{-1}$]')
 plt.xlabel(r'$r_\mathrm{eq}$ [mm]')

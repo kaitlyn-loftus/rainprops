@@ -1,3 +1,10 @@
+################################################################
+# make LoWo21 Figures S1-S2
+# test assumption Δv_raindrop-air = v_term(r) [LoWo21 section 2.2]
+# across broad planetary conditions
+# for both initial conditions (S1) and due to varying v_term
+# as evaporation changes r (S2)
+################################################################
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -46,7 +53,7 @@ plt.savefig('sfigs/sfig01.pdf',transparent=True,bbox_inches='tight',pad_inches=0
 plt.close()
 
 
-# make sfig 2 
+# make sfig 2
 
 r0s = np.array([0.05,0.1,0.5,1])
 

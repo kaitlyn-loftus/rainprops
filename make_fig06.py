@@ -1,6 +1,9 @@
+################################################################
+# make LoWo21 Figure 6
+# raindrop size bounds across different planetary conditions
+################################################################
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 
 # load results
 dir = 'output/fig06/'
@@ -8,6 +11,7 @@ var_char = np.load(dir+'var_char.npy')
 r_mins = np.load(dir+'r_mins.npy')
 r_maxs = np.load(dir+'r_maxs.npy')
 
+# adjust fontsizes for figure size
 plt.rc('font', size=20)          # change all font sizes
 plt.rc('xtick', labelsize=16)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=16)    # fontsize of the tick labels
@@ -18,7 +22,7 @@ f, axs = plt.subplots(1,3,sharey=True,figsize=(24,8.5))
 
 alpha = 0.33
 
-q = 5
+q = 5 # index of r_max to use
 
 f, axs = plt.subplots(1,3,sharey=True,figsize=(20,6))
 plt.subplots_adjust(wspace=0.1)
@@ -65,6 +69,7 @@ axs[0].set_ylim(1e-5,10)
 h, l = axs[0].get_legend_handles_labels()
 plt.subplots_adjust(bottom=0.275)
 f.legend(h, l,loc='lower center',ncol=4,bbox_to_anchor=(0.46,0.05))
+# schematically show CCN much smaller than raindrop size bounds
 for i in range(3):
     nshad = 20
     CCN_shading = np.zeros((nshad,3))

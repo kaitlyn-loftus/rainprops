@@ -1,7 +1,11 @@
+################################################################
+# make LoWo21 Figure 8
+# raindrop evap for specific known/hypothesized planets
+################################################################
 import matplotlib.pyplot as plt
 import numpy as np
 
-# load data
+# load results
 dir = 'output/fig08/'
 r_min = np.load(dir+'r_mins_log.npy')
 zs = np.load(dir+'zs_log.npy')
@@ -10,7 +14,6 @@ r_maxs = np.load(dir+'r_maxs.npy')
 z_maxs = np.load(dir+'z_maxs.npy')
 zH_maxs = np.load(dir+'zH_maxs.npy')
 
-# make figure 8
 planet_names = ['Earth','early Mars','Jupiter','Saturn','K2-18b']
 colors = ['dodgerblue','r','darkorange','gold','0.25']
 

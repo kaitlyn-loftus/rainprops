@@ -1,7 +1,9 @@
+################################################################
+# make LoWo21 Figure 5
+# pressure dependence of r_max using different calculation methods
+################################################################
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib as mpl
-import src.planet as planet
 
 # load results
 dir = 'output/fig05/'
@@ -11,7 +13,7 @@ r_maxs = np.load(dir+'r_maxs.npy')
 
 is_see_all_ℓ = False # set to True to see all length scales instead of ranges
 
-# make figure 5
+# make figure
 plt.figure()
 plt.xlabel(r'$p_\mathrm{air}$ [Pa]')
 plt.ylabel(r'$r_\mathrm{max}$ [mm]')

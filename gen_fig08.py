@@ -1,13 +1,14 @@
+################################################################
+# generate results for LoWo21 Figure 8
+# raindrop evap for specific known/hypothesized planets
+################################################################
 import src.fall as fall
 from src.planet import Planet
 import src.drop_prop as drop_prop
-import matplotlib.pyplot as plt
 import numpy as np
-from scipy.optimize import newton,brentq
-import time
-
 
 # set up different planets
+# ??? indicates very guessed from a large range of possible values
 
 # EARTH
 X = np.zeros(5) # composition
@@ -15,17 +16,17 @@ X[2] = 0.8 # f_N2  [mol/mol]
 X[3] = 0.2 # f_O2  [mol/mol]
 T_surf = 290. # [K]
 p_surf = 1.01325e5 # [Pa]
-RH_surf = 0.75 # []
+RH_surf = 0.75 # [ ]
 R_p = 1. # [R_earth]
 M_p = 1. # [M_earth]
 Earth = Planet(R_p,T_surf,p_surf,X,'h2o',RH_surf,M_p)
 
-# MARS
+# ANCIENT MARS
 X = np.zeros(5) # composition
 X[4] = 1. # f_CO2  [mol/mol]
 T_surf = 290. # [K] ???
 p_surf = 2e5 # [Pa]
-RH_surf = 0.75 # [] ????
+RH_surf = 0.75 # [ ] ???
 R_p = 0.532 # [R_earth]
 M_p = 0.107 # [M_earth]
 Mars = Planet(R_p,T_surf,p_surf,X,'h2o',RH_surf,M_p)
@@ -40,7 +41,7 @@ X[1] =  0.136 # f_He  [mol/mol]
 X[0] = 1 -  X[1] # f_H2  [mol/mol]
 T_LCL = 274. # [K]
 p_LCL = 4.85e5 # [Pa]
-RH_LCL = 1. # []
+RH_LCL = 1. # [ ]
 R_p = 11.2089 # [R_earth]
 M_p = 317.8 # [M_earth]
 Jupiter = Planet(R_p,T_LCL,p_LCL,X,'h2o',RH_LCL,M_p)
@@ -52,7 +53,7 @@ X[1] =  0.12 # f_He  [mol/mol]
 X[0] = 1 -  X[1] # f_H2  [mol/mol]
 T_LCL = 284. # [K]
 p_LCL = 10.4e5 # [Pa]
-RH_LCL = 1. # []
+RH_LCL = 1. # [ ]
 R_p = 9.449 # [R_earth]
 M_p = 95.16 # [M_earth]
 Saturn = Planet(R_p,T_LCL,p_LCL,X,'h2o',RH_LCL,M_p)
@@ -64,9 +65,9 @@ X[1] =  0.10 # f_He  [mol/mol] ???
 X[0] = 1 -  X[1] # f_H2  [mol/mol]
 T_LCL = 275 # [K] ???
 p_LCL = 1e4 # [Pa] ???
-RH_LCL = 1. # []
-R_p = 2.610 # [R_earth] Benneke et al. 2019
-M_p = 8.63 # [M_earth] Cloutier et al. 2019 +- 1.35 M_earth
+RH_LCL = 1. # [ ]
+R_p = 2.610 # [R_earth] Benneke et al. (2019)
+M_p = 8.63 # [M_earth] Cloutier et al. (2019) +- 1.35 M_earth
 K2_18b = Planet(R_p,T_LCL,p_LCL,X,'h2o',RH_LCL,M_p)
 print('K2-18b g',K2_18b.g)
 
@@ -75,13 +76,13 @@ planets = [Earth,Mars,Jupiter,Saturn,K2_18b]
 planet_names = ['Earth','Mars','Jupiter','Saturn','K2-18b']
 
 n_z = 25
-H_LCL = np.zeros(len(planets))
-r_min = np.zeros((n_z,len(planets),2))
-r_maxs = np.zeros(len(planets))
-z_maxs = np.zeros(len(planets))
-zH_maxs = np.zeros(len(planets))
-zs = np.zeros((n_z,len(planets)))
-zHs = np.zeros((n_z,len(planets)))
+H_LCL = np.zeros(len(planets)) # [m] atmospheric scale height @ LCL
+r_min = np.zeros((n_z,len(planets),2)) # [m]
+r_maxs = np.zeros(len(planets)) # [m]
+z_maxs = np.zeros(len(planets)) # [m]
+zH_maxs = np.zeros(len(planets)) # [H]
+zs = np.zeros((n_z,len(planets))) # [m]
+zHs = np.zeros((n_z,len(planets))) # [H]
 for j,pl in enumerate(planets):
     # maximum stable raindrop size
     # from Rayleigh-Taylor instability, ℓ_RT = 0.5πa
@@ -118,7 +119,7 @@ for j,pl in enumerate(planets):
         else:
             # calc r_min for that z
             r_min[i,j,0] = fall.calc_smallest_raindrop(pl,z_end=z_end,dr=5e-7)[0]
-    # go through each altitude [H] & do same thing
+    # go through each distance [H] & do same thing
     for i,zH in enumerate(zHs[:,j]):
         pl.z2x4drdz(pl.z_LCL)
         z = zH*H_LCL[j]
@@ -128,7 +129,7 @@ for j,pl in enumerate(planets):
         else:
             r_min[i,j,1] = fall.calc_smallest_raindrop(pl,z_end=z_end,dr=5e-7)[0]
 
-# output results
+# save results
 dir = 'output/fig08/'
 np.save(dir+'r_mins_log',r_min)
 np.save(dir+'zs_log',zs)

@@ -1,7 +1,10 @@
+################################################################
+# generate results for LoWo21 Figure 4
+# evaulate non-d number Λ as tool to understand raindrop evap
+################################################################
 import src.fall as fall
 from src.planet import Planet
 import src.drop_prop as drop_prop
-import matplotlib.pyplot as plt
 import numpy as np
 from scipy.optimize import newton,brentq
 import time
@@ -10,26 +13,29 @@ dir = 'output/fig04/'
 
 # panels (a) and (b)
 
+# set up Earth-like planetary conditions
 X = np.zeros(5) # composition
 X[2] = 1. # f_N2  [mol/mol]
 T_surf = 300 # [K]
 p_surf = 1.01325e5 # [Pa]
-RH_surf = 0.75 # []
+RH_surf = 0.75 # [ ]
 R_p = 1. # [R_earth]
 M_p = 1. # [M_earth]
 pl = Planet(R_p,T_surf,p_surf,X,'h2o',RH_surf,M_p)
 
 n_z = 100
-zs = np.linspace(0,pl.z_LCL,n_z)
-r_min = np.zeros((n_z-1,2))
+zs = np.linspace(0,pl.z_LCL,n_z) # [m]
+r_min = np.zeros((n_z-1,2)) # [m]
+# calc r_min with integration
 t1 = time.time()
 for i,z in enumerate(zs[:-1]):
     pl.z2x4drdz(pl.z_LCL)
-    r_min[i,0] = fall.calc_smallest_raindrop(pl,z_end=z,dr=5e-7)[0]
+    r_min[i,0] = fall.calc_smallest_raindrop(pl,z_end=z,dr=5e-7)[0] # [m]
 t2 = time.time()
+# calc r_min with non-d number
 for i,z in enumerate(zs[:-1]):
     ell = pl.z_LCL-z
-    r_min[i,1] = drop_prop.calc_r_from_Λ(pl,ell,Λ_val=1)
+    r_min[i,1] = drop_prop.calc_r_from_Λ(pl,ell,Λ_val=1) # [m]
 t3 = time.time()
 
 print('t_int',t2-t1)
@@ -41,24 +47,31 @@ np.save(dir+'zs',zs)
 
 n_r = 200
 dr = 1e-6
-r0s = np.logspace(-5,-3,n_r)
-ell = pl.z_LCL
+r0s = np.logspace(-5,-3,n_r) # [m]
+ell = pl.z_LCL # [m]
 m_frac_evap = np.zeros((n_r,2))
 for i,r0 in enumerate(r0s):
+    # calc m_frac_evap with integration
     sol = fall.integrate_fall(pl,r0)
     if sol.status==0:
-        r_end = sol.sol.__call__(0.0)[0]
+        r_end = sol.sol.__call__(0.0)[0] # [m]
     else:
         r_end = dr
-    m_frac_evap[i,0] = 1 - r_end**3/r0**3
-    m_frac_evap[i,1] = drop_prop.calc_Λ(r0,pl,ell)
+    m_frac_evap[i,0] = 1 - r_end**3/r0**3 # [ ]
+    # calc m_frac_evap with non-d number
+    m_frac_evap[i,1] = drop_prop.calc_Λ(r0,pl,ell) # [ ]
 
+# m_frac_evap = min{1,Λ} (LoWo21 section 3.3)
 m_frac_evap[np.where(m_frac_evap[:,1]>1.),1] = 1.
+
+# save results
 np.save(dir+'r0s',r0s)
 np.save(dir+'m_frac_evap',m_frac_evap)
 
 # panels (c) and (d)
 
+# set up broad planetary conditions
+# n_Xs*n_var*n_ℓ = 90 different planetary conditions
 X_H2 = np.zeros(5) # composition
 X_N2 = np.zeros(5) # composition
 X_CO2 = np.zeros(5) # composition
@@ -67,24 +80,24 @@ X_N2[2] = 1. # f_N2 [mol/mol]
 X_CO2[4] = 1. # f_CO2 [mol/mol]
 T_LCL = 275 # [K]
 p_LCL = 7.5e4 # [Pa]
-RH = 1. # []
+RH = 1. # [ ]
 R_p = 1. # [R_earth]
 M_p = 1. # [M_earth]
-Xs = [X_H2,X_N2,X_CO2]
+Xs = [X_H2,X_N2,X_CO2] # array of varying atm compositions
 
 n_var = 10
 
-p_LCLs = np.logspace(np.log10(5e3),7,n_var)
-T_LCLs = np.linspace(275,400,n_var)
-g = np.linspace(2,25,n_var)
-var_char = np.array([p_LCLs,g,T_LCLs])
+p_LCLs = np.logspace(np.log10(5e3),7,n_var) # [Pa]
+T_LCLs = np.linspace(275,400,n_var) # [K]
+g = np.linspace(2,25,n_var) # [m/s2]
+var_char = np.array([p_LCLs,g,T_LCLs]) # array of varying planetary characteristics
 
 n_ℓ = 3
-ℓs = np.array([100,500,1000])
-r_mins = np.zeros((3,3,n_var,n_ℓ,2))
-r0s = np.array([0.05,0.1,0.5,1])*1e-3
+ℓs = np.array([100,500,1000]) # [m]
+r_mins = np.zeros((3,3,n_var,n_ℓ,2)) # [m]
+r0s = np.array([0.05,0.1,0.5,1])*1e-3 # [m]
 n_r0 = 4
-m_frac_evap = np.zeros((3,3,n_var,n_r0,2))
+m_frac_evap = np.zeros((3,3,n_var,n_r0,2)) # [ ]
 dr = 5e-7 # [m]
 
 for i,X in enumerate(Xs):
@@ -97,37 +110,38 @@ for i,X in enumerate(Xs):
             elif x==2:
                 pl = Planet(R_p,v,p_LCL,X,'h2o',RH,M_p)
             for k,ℓ in enumerate(ℓs):
-                print(i,x,j,k)
                 r_mins[i,x,j,k,0] = fall.calc_smallest_raindrop(pl,z_end=-ℓ,dr=5e-7)[0]
                 try:
                     r_mins[i,x,j,k,1] = drop_prop.calc_r_from_Λ(pl,ℓ)
-                except ValueError:
+                except ValueError: # when Λ not defined
                     r_mins[i,x,j,k,1] = None
                 if k==1:
                     for q,r0 in enumerate(r0s):
+                        # integration
                         sol = fall.integrate_fall(pl,r0,z_end=-ℓ)
                         if sol.status==0:
                             r_end = sol.sol.__call__(-ℓ)[0]
                         else:
                             r_end = 0.
                         m_frac_evap[i,x,j,q,0] = 1 - r_end**3/r0**3
-                        Λ = drop_prop.calc_Λ(r0,pl,ℓ)
+                        # non-d number
+                        # m_frac_evap = min{1,Λ} (LoWo21 section 3.3)
+                        Λ = drop_prop.calc_Λ(r0,pl,ℓ) # [ ]
                         if Λ>1:
                             m_frac_evap[i,x,j,q,1] = 1.
                         else:
                             m_frac_evap[i,x,j,q,1] = Λ
 
 
-
-
 percent_err_rmin = (r_mins[:,:,:,:,0] - r_mins[:,:,:,:,1])/r_mins[:,:,:,:,0]
 rat_rmin = r_mins[:,:,:,:,1]/r_mins[:,:,:,:,0]
-diff_rmin = r_mins[:,:,:,:,1]/r_mins[:,:,:,:,0]
+diff_rmin = r_mins[:,:,:,:,1]-r_mins[:,:,:,:,0]
 
 percent_err_fevap = (m_frac_evap[:,:,:,:,0] - m_frac_evap[:,:,:,:,1])/m_frac_evap[:,:,:,:,0]
 rat_fevap = m_frac_evap[:,:,:,:,1]/m_frac_evap[:,:,:,:,0]
 diff_fevap = m_frac_evap[:,:,:,:,1]-m_frac_evap[:,:,:,:,0]
 
+# save results
 np.save(dir+'var_char',var_char)
 np.save(dir+'ells_broad',ℓs)
 np.save(dir+'r0s_broad',r0s)

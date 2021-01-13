@@ -1,28 +1,27 @@
+################################################################
+# generate results for LoWo21 Figure 6
+# raindrop size bounds across different planetary conditions
+################################################################
 import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib as mpl
 from src.planet import Planet
 import src.fall as fall
 import src.drop_prop as drop_prop
 
-# raindrop size bounds figure
+# set up default planet characteristics
 # default state is Earth-like
 # vary g, p_surf, T in isolation
-
-
-# set up default planet characteristics
 R_p = 1. # [Earth radii]
 M_p = 1. # [Earth masses]
 T_surf = 300. # [K]
 p_surf = 1.01325e5 # [Pa]
-RH_surf = 0.5 # []
-f_h2 = 0.  # [dry volume mixing ratio]
-f_he = 0. # [dry volume mixing ratio]
-f_n2 = 1. # [dry volume mixing ratio]
-f_o2 = 0. # [dry volume mixing ratio]
-f_co2 = 0. # [dry volume mixing ratio]
+RH_surf = 0.5 # [ ]
+f_h2 = 0.  # [mol/mol]
+f_he = 0. # [mol/mol]
+f_n2 = 1. # [mol/mol]
+f_o2 = 0. # [mol/mol]
+f_co2 = 0. # [mol/mol]
 # H2, He, N2, O2, CO2
-atm_comp = np.array([f_h2,f_he,f_n2,f_o2,f_co2]) # [dry volume mixing ratio]
+atm_comp = np.array([f_h2,f_he,f_n2,f_o2,f_co2]) # [mol/mol] dry volume mixing concentrations
 
 # number of points on line
 n = 25
@@ -38,12 +37,11 @@ r_maxs = np.zeros((3,n)) # [m]
 r_mins = np.zeros((3,n,3)) # [m]
 
 
-RHs = [0.25,0.5,0.75] # set 3 RH values to show effect on r_min
+RHs = [0.25,0.5,0.75] # [ ] set 3 RH values to show effect on r_min
 
 for i in range(3):
     for j,v in enumerate(var_char[i,:]):
         for k,RH in enumerate(RHs):
-            print(i,j,k)
             # set up planetary conditions
             if i==0:
                 pl = Planet(R_p,T_surf,v,atm_comp,'h2o',RH,M_p)
@@ -62,7 +60,7 @@ for i in range(3):
                 r_maxs[i,j] = drop_prop.calc_r_max_RT(pl,np.pi/2.)
 
 
-# output results
+# save results
 dir = 'output/fig06/'
 np.save(dir+'r_maxs',r_maxs)
 np.save(dir+'r_mins',r_mins)

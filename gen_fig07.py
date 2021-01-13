@@ -1,8 +1,11 @@
+################################################################
+# generate results for LoWo21 Figure 7
+# raindrop evap with varying dry atm composition
+################################################################
 import numpy as np
 from src.planet import Planet
 import src.fall as fall
 import src.drop_prop as drop_prop
-import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
 
 dir = 'output/fig07/'
@@ -11,12 +14,12 @@ dir = 'output/fig07/'
 X_h2 = np.zeros(5) # composition
 X_n2 = np.zeros(5) # composition
 X_co2 = np.zeros(5) # composition
-X_h2[0] = 1. # pure H2 atm
-X_n2[2] = 1. # pure N2 atm
-X_co2[4] = 1. # pure CO2 atm
+X_h2[0] = 1. # [mol/mol] pure H2 atm
+X_n2[2] = 1. # [mol/mol] pure N2 atm
+X_co2[4] = 1. # [mol/mol] pure CO2 atm
 T_LCL = 275 # [K]
 p_LCL = 7.5e4 # [Pa]
-RH_LCL = 1. # []
+RH_LCL = 1. # [ ]
 R_p = 1 # [R_earth]
 M_p = 1 # [M_earth]
 pl_h2 = Planet(R_p,T_LCL,p_LCL,X_h2,'h2o',RH_LCL,M_p)
@@ -35,7 +38,7 @@ n_z = n_z1 + n_z2
 n_pl = len(planets)
 zs = np.zeros(n_z)
 
-
+# for each r0 and atm composition
 for i,r0 in enumerate(r0s):
     for j,pl in enumerate(planets):
         # integrate falling of raindrop of given size r0 for given planet pl

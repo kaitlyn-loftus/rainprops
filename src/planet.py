@@ -1,5 +1,5 @@
 ################################################################
-# class for storing planetary attributes
+# class for storing and calculating planetary attributes
 ################################################################
 import numpy as np
 import src.condensible as condensible
@@ -46,16 +46,16 @@ class Planet:
             * M [kg] - planet mass
             * g [m/s2] - surface gravity
             * c [Condensible object] - contains condensible properties for species assigned to planet
-            * f_c [mol/mol] - molar concentration of condensible species below LCL (assuemd to be constant)
+            * f_c [mol/mol] - molar concentration of condensible species below LCL (assumed to be constant)
             * μ_dry [kg/mol] - average dry atmospheric molar mass
-            * μ_air [kg/mol] - average atmospheric molar mass (includes condensible species )
-            * R_sp_air [J/kg/K] - specific gas constant for air (inclues condensible species)
+            * μ_air [kg/mol] - average atmospheric molar mass (includes condensible species)
+            * R_sp_air [J/kg/K] - specific gas constant for air (includes condensible species)
             * c_p [J/kg/K] - specific heat capacity for air (includes condensible species)
             * is_Cc [boolean] - whether to account for Cunningham-Stokes correction to drag, default is no (minimal difference if True)
         surface values ("surface" is equivalent to where z=0)
             * T_surf [K] - surface temperature
             * p_surf [Pa] - surface pressure total (will be adjusted later to include condensible vapor)
-            * RH_surf [] - relative humidity
+            * RH_surf [ ] - relative humidity
         LCL values (may be equal to surface values)
             * T_LCL [K]
             * z_LCL [m]
@@ -82,10 +82,10 @@ class Planet:
             specific to Titan scenario (not generalized 😿 presently)
                 * z2x4drdz_12
                 taken from Graves et al. (2008)
-                * calc_ηG
-                * calc_KG
-                * calc_D_c1G
-                * calc_D_c2G
+                    * calc_ηG
+                    * calc_KG
+                    * calc_D_c1G
+                    * calc_D_c2G
         methods to calculate drop properties
             * f_C_D
             * f_rat
@@ -104,18 +104,18 @@ class Planet:
             * atm_comp [volume mixing ratio] - dry atmospheric composition array
                                                [H2, He, N2, O2, CO2]
             * cndsbl_species [string] - condensible species, presently only h2o & ch4
-                               as robust options
+                                        as robust options
             * RH_surf [] - relative humidity value at input z, between 0 and 1
             * (optional) Mp_earth [Earth masses] - planet mass
             * (optional) g_force [m/s2] - preset surface gravity value
-            * (optional) C_D_parm [string] - sets parameterization used to calculate drag coefficient, see drop_prop, default is described in LoWo eq ()
-            * (optional) rat_param [string] - sets method for calculating raindrop axis ratio (b/a), see drop_prop, default is to use method of Green (1975), LoWo eq ()
-            * (optional) f_vent_param [string] - sets parameterization used to calculate ventilation factors for molecular and heat transport, see drop_prop, default is to use separate methods as described in LoWo ()
+            * (optional) C_D_parm [string] - sets parameterization used to calculate drag coefficient, see drop_prop, default is described in LoWo eqs (6-7)
+            * (optional) rat_param [string] - sets method for calculating raindrop axis ratio (b/a), see drop_prop, default is to use method of Green (1975), LoWo eq (2)
+            * (optional) f_vent_param [string] - sets parameterization used to calculate ventilation factors for molecular and heat transport, see drop_prop, default is to use separate methods as described in LoWo eqs (12-14)
             * (optional) is_find_LCL [boolean] - whether or not to attempt to numerically solve for LCL, default is True, set to false when don't want to do a calculation with altitude
             * (optional) is_Titan [boolean] - whether Planet is attempting to mimic Titan, default is False, if True will define functions for calculating atmospheric properties from interpolated Huygens probe data
             * (optional) is_Graves [boolean] - whether trying to mimic Graves et al. (2008)
             * (optional) is_add_pc2psurf [boolean] - whether to add condensible pressure to inputted p_input, alternative is to keep p_input as p_total and substract condensible pressure to get dry pressure, default is True
-            * (optional) is_Cc [boolean] - whether or not Cunningham-Stokes correction is used for v calculations, default is True
+            * (optional) is_Cc [boolean] - whether or not Cunningham-Stokes correction is used for v calculations, default is False
 
         '''
         self.R = Rp_earth*R_earth # [m] planetary radius
@@ -320,7 +320,7 @@ class Planet:
     def calc_D_c(self,T=None,p=None):
         '''
         calculate mass diffusion coefficient for condensible gas in air from
-        eq 11-3.2 pg 549 Reid+ 1977
+        eq (11-3.2) pg 549 Reid+ (1977)
         inputs:
             * self
             * (optional) T [K]
@@ -334,8 +334,8 @@ class Planet:
             p = self.p
 
         D_c = 0
-        # combine for mixture following Fairbanks & Wilke 1950
-        # except also include self diffusion term
+        # combine for mixture following Fairbanks & Wilke (1950)
+        # except also include self-diffusion term
         for i,X in enumerate(self.X):
             D_Xc = self.X_D_c_base[i]*T**1.5/(p/1.01325e5)/self.calc_Ω_D(T/self.X_ep_kB_avg[i])
             D_c += X/D_Xc
@@ -349,14 +349,14 @@ class Planet:
             * self
         '''
         for i,X in enumerate(self.X):
-            d_avg = 0.5*(self.X_d[i] + self.X_d[-1]) # avg according to Reid+ 1977, eq 11-3.4, pg 549
+            d_avg = 0.5*(self.X_d[i] + self.X_d[-1]) # avg according to Reid+ (1977), eq (11-3.4), pg 549
             self.X_D_c_base[i] = 1.858e-3*(1/(self.X_μ[i]*1e3)+1/(self.X_μ[-1]*1e3))**0.5/d_avg**2
             self.X_ep_kB_avg[i] = (self.X_ep_kB[i]*self.X_ep_kB[-1])**0.5 # avg according to Reid+ 1977, eq 11-3.5, pg 549
 
     def calc_Ω_D(self,T_star):
         '''
         calculate diffusion collision integral
-        following 11-3.6 Reid+ 1977 (pg 549-550)
+        following eq (11-3.6) Reid+ (1977) (pg 549-550)
         inputs:
             * self
             * T_star [] - kT/ϵ, (ϵ=Lennard-Jones energy)
@@ -369,7 +369,7 @@ class Planet:
     def calc_Ω_η(self,T_star):
         '''
         calculate collision integral
-        following 9-4.3 Reid+ 1977 (pg 396)
+        following eq (9-4.3) Reid+ (1977) (pg 396)
         inputs:
             * self
             * T_star [] - kT/ϵ, (ϵ=Lennard-Jones energy)
@@ -391,21 +391,21 @@ class Planet:
         '''
         if T==None:
             T = self.T
-        # calc η for individual gases given T based on Reid+ 1977 eq 9-3.9
+        # calc η for individual gases given T based on Reid+ (1977) eq 9-3.9
         η_i = 1e-7*26.69*(self.X_μ*1e3*T)**0.5/self.X_d**2/self.calc_Ω_η(T/self.X_ep_kB)
         θ = T/1000.
         c_p_i = (self.X_cp[:,0] + self.X_cp[:,1]*θ + self.X_cp[:,2]*θ**2 + self.X_cp[:,3]*θ**3)*1000.
         R_i = R_gas/self.X_μ
         c_v_i = c_p_i - R_i
         # calc K for individual gases based on Eucken correction
-        # Reid+ 1977 Eq 10-3.3 pg 473
-        # Eucken less theoretically rigourous but works better vs experiments
+        # Reid+ (1977) eq (10-3.3) pg 473
+        # Eucken less theoretically rigorous but works better vs experiments
         # for other simple methods
         # pg 480, 495
         K_i = η_i*c_v_i/4.*(9*c_p_i/c_v_i-5.)
         K = 0.
         # weight K_i in mixture by Wilke's approach + Wassiljewa eq
-        # Reid+ 1977 pg 508, eq 10-6.1; eq 10-6.4
+        # Reid+ (1977) pg 508, eq (10-6.1); eq (10-6.4)
         for i in range(self.n_gas):
             denom = 0.
             for j in range(self.n_gas):
@@ -417,7 +417,7 @@ class Planet:
     def calc_c_p(self,T):
         '''
         calculate specific heat capacity at constant pressure for given T
-        source: A.6 of Fundamentals of Thermodynamics Borgnakke & Sonntag 2009
+        source: A.6 of Fundamentals of Thermodynamics Borgnakke & Sonntag (2009)
         c_p_i(T) = 1000*(sum over j of c_p_j*T^j/1000) for j=0-3
         c_p(T) = sum over i of c_p_i(T)*q_i
 
@@ -433,10 +433,10 @@ class Planet:
 
     def calc_η(self):
         '''
-        calculate viscosity of air (η) as a function of local pressure
-        Reid+ 1977 eq 9-3.9 (pg 395)
+        calculate dynamic viscosity of air (η) as a function of local pressure
+        Reid+ (1977) eq (9-3.9) (pg 395)
         follow Wilkes' rule for mixtures for combining different gases into "air"
-        Reid+ 1977 eq 9-5.2 (pg 411)
+        Reid+ (1977) eq (9-5.2) (pg 411)
 
         input:
             * self

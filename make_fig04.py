@@ -1,3 +1,7 @@
+################################################################
+# make LoWo21 Figure 4
+# evaulate non-d number Λ as tool to understand raindrop evap
+################################################################
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
@@ -40,7 +44,7 @@ ax0.scatter(r_min[0,1]*1e3,1.,c='darkviolet',zorder=10)
 ax0.set_xlabel(r'$r_0$ [mm]')
 ax0.set_xlim(1e-2,1)
 ax0.set_xscale('log')
-ax0.set_ylabel('fraction mass evaporated []')
+ax0.set_ylabel('fraction mass evaporated [ ]')
 ax0.set_ylim(-0.04,1.04)
 ax0.legend(loc=3)
 

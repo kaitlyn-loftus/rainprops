@@ -1,5 +1,5 @@
 ################################################################
-# create an object for storing condensible attributes
+# class for storing and calculating condensible attributes
 ################################################################
 
 import numpy as np
@@ -7,7 +7,7 @@ import numpy as np
 # load condensible data
 c_properties = np.genfromtxt('./data/condensible_properties.csv',delimiter=',',names=True)
 
-# N2 + CH4 mixture activity coefficents, used in calc_γ
+# N2 + CH4 mixture activity coefficients, used in calc_γ
 # from Thompson et al. (1992) eq (7b) and Table 1
 a0 = 0.8096
 a1 = -52.07
@@ -37,17 +37,15 @@ class Condensible:
         * L_const [J/kg] - constant latent heat of vaporization
         * T_crit [K] - critical T (where L=0)
         * T_freeze [K] - T at which condensible becomes solid
-        * d [m] - molecular diameter
-
         * c_p [J/kg/K] - specific heat capacity of condensible liquid
         * conds_i [int] - index within data file
     methods:
         * __init__ - constructor
-        methods which return T-depdendent condensibe properties:
+        methods which return T-dependent condensible properties:
             * σ [J/m2] - surface tension
             * p_sat [Pa] - condensible saturation pressure with T
             * L [J/kg] - T-dependent latent heat of vaporization
-            * ρ [kg/m3] - T-depdendent liquid condensible density
+            * ρ [kg/m3] - T-dependent liquid condensible density
     '''
     def __init__(self,type_c):
         '''
@@ -80,7 +78,7 @@ class Condensible:
             self.conds_i = 2
         if type_c!='combo':
             self.μ = c_properties['molar_mass'][self.conds_i] # [kg/mol]
-            self.R = c_properties['R_sp'][self.conds_i] # [J/kg/K]
+            self.R = c_properties['R_sp'][self.conds_i] # [J/kg/K], specific gas constant
             self.ρ_const = c_properties['rho_const'][self.conds_i] # [kg/m3]
             # see Table 3 for citations
             self.gas_i = int(c_properties['gas_prop_index'][self.conds_i]) # [int]
@@ -106,14 +104,14 @@ class Condensible:
             * p [Pa] - saturation partial pressure of condensible
         '''
         if self.type_c=='h2o':
-            # from Wagner & Pruß (2002); eq 2.5
+            # from Wagner & Pruß (2002); eq (2.5)
             θ = 1 - T/self.T_c
             return self.p_c*np.exp(self.T_c/T*(self.a1*θ + self.a2*θ**1.5 + self.a3*θ**3 + self.a4*θ**3.5 + self.a5*θ**4 + self.a6*θ**7.5))
         elif self.type_c=='ch4':
-            # from Graves 2008; appendix eq A.27
+            # from Graves+ (2008); appendix eq (A.27)
             return 3.4543e9*np.exp(-1145.705/T) # [Pa]
         elif self.type_c=='n2':
-            # from Graves 2008; appendix eq A.26
+            # from Graves (2008); appendix eq (A.26)
             return 1e5*(10**(3.95-306./T)) # [Pa]
 
 
@@ -152,14 +150,14 @@ class Condensible:
         if self.type_c=='h2o':
             return self.ρ_const
         elif self.type_c=='ch4':
-            if not(self.is_lorenz):
-                # Graves et al 2008 A.5
+            if not(self.is_lorenz): # handle Lorenz (1993) assumption of liquid ρ
+                # Graves et al. (2008) eq (A.5)
                 return 612-1.8*T #[kg/m3]
             else:
                 return self.ρ_const
         elif self.type_c=='fe':
             '''
-            from Assael et al. 2006
+            from Assael et al. (2006)
             good for 1809–2480 K
             '''
             c3 = 7034.96  #[kg/m3]
@@ -181,7 +179,7 @@ class Condensible:
             * σ [N/m] - surface tension
         '''
         if self.type_c=='h2o':
-            # from Vargaftik+ 1983
+            # from Vargaftik+ (1983)
             B = 235e-3 # [N/m]
             b = -0.625 # []
             mu = 1.256 # []
@@ -207,16 +205,18 @@ class Condensible:
 
     def calc_γ(self,T,X1,X2):
         '''
-        activity coefficient to account for thermodynamics
+        activity coefficient to account for thermodynamic
         effects of liquid condensible mixture
         presently only works for N2-CH4 mixture
         1 -> N2, 2 -> CH4
-        from Thompson et al. (1992) eq(9)
+        from Thompson et al. (1992) eq (9)
         inputs:
             * self
             * T [K] - temperature
             * X1 [mol/mol] - molar concentration of component 1
             * X2 [mol/mol] - molar concentration of component 2
+        output:
+            * γ [ ] - condensible activity coefficient
         '''
         if self.type_c=='n2':
             a = calc_a(T)

@@ -1,3 +1,6 @@
+#######################################################################
+# module for raindrop properties
+#######################################################################
 import numpy as np
 from scipy.optimize import brentq, newton
 import matplotlib.pyplot as plt
@@ -11,7 +14,7 @@ R_gas = 8.31446261815324 # [J/K/mol]
 def calc_Re(r,v,pl):
     '''
     calculate Reynolds number
-    Re = 2*ρ_fluid*r*v/η_fluid
+    Re = 2*ρ_air*r*v/η_air
     inputs:
         * r [m] - drop size
         * v [m/s] - drop fall speed
@@ -39,7 +42,7 @@ def calc_Cc(r,pl):
     '''
     if pl.is_Cc:
         # mean free path of air
-        # Seinfeld and Pandis eq 9.6 pg 399
+        # Seinfeld & Pandis eq (9.6) pg 399
         mfp = 2.*pl.η/(pl.p*(8.*pl.μ_air/(np.pi*R_gas*pl.T))**0.5) # [m]
         # Knudsen number
         Kn = mfp/r # []
@@ -50,8 +53,6 @@ def calc_Cc(r,pl):
     else:
         Cc = 1.
     return Cc
-
-# calculate different variations of Weber number
 
 def calc_We(r,pl):
     '''
@@ -66,59 +67,34 @@ def calc_We(r,pl):
     We = r*calc_v(r,pl,pl.f_rat,pl.f_C_D)**2*pl.ρ/pl.c.σ(pl.T)
     return We
 
-def calc_We_spherical(r,pl):
-    '''
-    calculate We number assuming spherical raindrop
-    We = r*v^2*ρ_air/σ
-    inputs:
-        * r [m] - equiv r
-        * pl [Planet object]
-    output:
-        * We [] - Weber number
-    '''
-    v = calc_v(r,pl,pl.f_rat,calc_C_D_sphere)
-    We = r*v**2*pl.ρ/pl.c.σ(pl.T)
-    return We
-
-def calc_We_CD1(r,pl):
-    '''
-    calculate We number assuming spherical raindrop and C_D = 1
-    We = r*v^2*ρ_air/σ
-    inputs:
-        * r [m] - equiv r
-        * pl [Planet object]
-    output:
-        * We [] - Weber number
-    '''
-    v = np.sqrt(8./3*r*pl.g*(pl.c.ρ(pl.T))/pl.ρ)
-    We = r*v**2*pl.ρ/pl.c.σ(pl.T)
-    return We
-
-
 def δ0(δ,pl,f):
     '''
     zero function for numerical solver
     to calculate temperature difference between air and drop
+    in equilibrium when drop evaporating
+    LoWo21 eq (17)
     inputs:
         * δ [K] - T_air - T_drop
         * pl [Planet object]
-        * f [] - ventilation factor
+        * f [ ] - ventilation factor
     output:
         * difference between δ predicted by given δ, pl and given δ [K]
     '''
-    ΔρcΔT = (pl.c.p_sat(pl.T)/pl.T-pl.c.p_sat(pl.T-δ)/(pl.T-δ))/δ/pl.c.R
-    A = (pl.K*f[1]+pl.c.L(pl.T)*pl.D_c*ΔρcΔT*f[0])
-    B = pl.D_c*pl.c.L(pl.T)*f[0]*((1-pl.RH)*pl.c.p_sat(pl.T)/pl.c.R/pl.T)
-    return δ - B/A
+    δ_pred = (pl.c.p_sat(pl.T-δ)/(pl.T-δ)-pl.RH*pl.c.p_sat(pl.T)/pl.T)
+    δ_pred *= pl.D_c*f[0]*pl.c.L(pl.T)/pl.c.R/pl.K/f[1]
+    return δ - δ_pred
 
 def calc_drdz_Λ(r,pl,z,w=0):
     '''
-    calculate drdz for evaluating Λ, LoWo eq ()
+    calculate drdz for evaluating Λ
+    LoWo21 eq (15) with eqs (8)-(10),(17)
     inputs:
         * r [m] - equiv r
         * pl [Planet object]
         * z [m] - altitude for setting z-dependent atm properties
         * (optional) w [m/s] - vertical wind speed
+    output:
+        * drdz [m/m] - change in radius wrt altitude
     '''
     pl.z2x4drdz(z)
     v = w-1*calc_v(r,pl,pl.f_rat,pl.f_C_D)
@@ -136,55 +112,57 @@ def calc_drdz_Λ(r,pl,z,w=0):
     drdz = drdt*1./v
     return drdz
 
-def calc_Λ(r,pl,ell,w=0,z=None):
+def calc_Λ(r,pl,ℓ,w=0,z=None):
     '''
-    calculate Λ LoWo eq()
+    calculate Λ
+    LoWo21 eq (19) with ΔT from LoWo21 eq (17)
     inputs:
         * r [m] - equiv r
         * pl [Planet object]
-        * ell [m] - length scale overwhich to consider falling + evaporation
+        * ℓ [m] - length scale over which to consider falling + evaporation
         * (optional) w [m/s] - vertical wind speed
         * (optional) z [m] - specify altitude where z-dependent values should be evaluated,
                              default is None which then assumes z = z_LCL - ℓ/2
     output:
-        * Λ []
+        * Λ [ ]
     '''
     if z==None:
-        z = pl.z_LCL - ell/2.
+        z = pl.z_LCL - ℓ/2.
     drdz = calc_drdz_Λ(r,pl,z,w)
-    Λ = drdz*3*ell/r
+    Λ = drdz*3*ℓ/r
     return Λ
 
-def r_Λ_x(r,pl,ell,Λ_val,w):
+def r_Λ_x(r,pl,ℓ,Λ_val,w):
     '''
     zero function for numerical solver
     to calculate r for given Λ_val, ℓ, pl
     inputs:
         * r [m] - equiv r
         * pl [Planet object]
-        * ell [m] - length scale overwhich to consider falling + evaporation
+        * ℓ [m] - length scale over which to consider falling + evaporation
         * Λ_val [] - Λ value solving for
         * w [m/s] - vertical wind speed
     output:
         * difference between Λ predicted by given r, ℓ and desired Λ []
     '''
-    Λ = calc_Λ(r,pl,ell)
+    Λ = calc_Λ(r,pl,ℓ)
     return Λ_val - Λ
 
-def calc_r_from_Λ(pl,ell,Λ_val=1,w=0):
+def calc_r_from_Λ(pl,ℓ,Λ_val=1,w=0):
     '''
     zero function for numerical solver
     to calculate r for given Λ_val, ℓ, pl
+    LoWo21 eq (19)
     inputs:
         * r [m] - equiv r
         * pl [Planet object]
-        * ell [m] - length scale overwhich to consider falling + evaporation
+        * ℓ [m] - length scale over which to consider falling + evaporation
         * Λ_val [] - Λ value solving for
         * (optional) w [m/s] - vertical wind speed
     output:
         * r [m] - r_eq such that Λ(r,ℓ) = Λ_val
     '''
-    return brentq(r_Λ_x,1e-7,1e-3,args=(pl,ell,Λ_val,w))
+    return brentq(r_Λ_x,1e-7,1e-3,args=(pl,ℓ,Λ_val,w))
 
 #######################################################################
 # functions associated with raindrop shape calculations
@@ -192,9 +170,9 @@ def calc_r_from_Λ(pl,ell,Λ_val=1,w=0):
 def req_0(rat,req,pl):
     '''
     zero function for numerical solver
-    to calculate (equilibrium) shape of drop as an oblate spheriod
+    to calculate (equilibrium) shape of drop as an oblate spheroid
     inputs:
-        * rat [] - ratio of spheriod b/a
+        * rat [] - ratio of spheroid b/a
         * req [m] - equivalent volume spherical radius
         * pl [Planet object]
     output:
@@ -204,9 +182,9 @@ def req_0(rat,req,pl):
 
 def calc_rat_Green(req,pl,v=None):
     '''
-    calculate (equilibrium) shape of drop as an oblate spheriod
+    calculate (equilibrium) shape of drop as an oblate spheroid
     see Green (1975) eq (6) [note ∃ a small typo in G75, σ should be raised to 0.5 rather than 1]
-    also LoWo eq (2)
+    also LoWo21 eq (2)
     inputs:
         * req [m] - equivalent volume spherical radius
         * pl [Planet object]
@@ -219,7 +197,7 @@ def calc_rat_Green(req,pl,v=None):
 def a_0(rat,a,pl):
     '''
     zero function for numerical solver
-    to calculate (equilibrium) shape of drop as an oblate spheriod
+    to calculate (equilibrium) shape of drop as an oblate spheroid
     with knowledge of semimajor axis
     inputs:
         * rat [] - ratio of spheroid b/a
@@ -232,11 +210,11 @@ def a_0(rat,a,pl):
 
 def calc_rat_Green_from_a(a,pl):
     '''
-    calculate (equilibrium) shape of drop as an oblate spheriod
+    calculate (equilibrium) shape of drop as an oblate spheroid
     from known semimajor axis (rather than r_eq)
     use a = rat^(-1/3)r_eq with:
         Green (1975) eq (6) [note ∃ a small typo in G75, σ should be raised to 0.5 rather than 1]
-        or LoWo eq (2)
+        or LoWo21 eq (2)
     inputs:
         * a[m] - semimajor axis of drop
         * pl [Planet object]
@@ -257,7 +235,6 @@ def calc_rat_Lorenz(r,pl,v):
         * v [m/s] - velocity
     output:
         * rat [] - axis ratio b/a
-
     '''
     We = r*v**2*pl.ρ/pl.c.σ(pl.T)
     if We>=0.1: # L93 eq (11)
@@ -277,20 +254,20 @@ def calc_Ψ(r,pl):
     output:
         * Ψ [] - surface area of sphere of eq volume / actual surface area
     '''
-    return calc_SA_sphere(r)/calc_SA_spheriod(r,pl)
+    return calc_SA_sphere(r)/calc_SA_spheroid(r,pl)
 
 
 calc_SA_sphere = lambda r: 4*np.pi*r**2 # [m2] surface area of a sphere of radius r
-delta = lambda a0,a: (a/a0)**2 -1 # defined in Green (1975)
+delta = lambda a0,a: (a/a0)**2 -1 # Green (1975) eq (4)
 
-def calc_SA_spheriod(r,pl):
+def calc_SA_spheroid(r,pl):
     '''
-    calculate surface area of a spheriod
+    calculate surface area of a spheroid
     inputs:
         * r [m] - radius of drop
-        * atm [Atm object] - describes atmosphere drop falling in
+        * pl [Planet object]
     output:
-        * surface area of spheriod [m2]
+        * surface area of spheroid [m2]
     '''
     rat = calc_rat_Green(r,pl)
     a = r/rat**(1./3)
@@ -304,6 +281,7 @@ def calc_SA_spheriod(r,pl):
 
 def assign_f_rat(rat_param):
     '''
+    assign function for calculating raindrop axis ratio within Planet object
     input:
         * rat_param [string] - parametrization for axis ratio calculation
     output:
@@ -319,6 +297,7 @@ def assign_f_rat(rat_param):
 
 def assign_f_C_D(C_D_param):
     '''
+    assign function for calculating C_D within Planet object
     input:
         * C_D_param [string] - parameterization for drag coefficient C_D
     output:
@@ -342,6 +321,7 @@ def assign_f_C_D(C_D_param):
 
 def assign_f_vent(f_vent_param):
     '''
+    assign function for calculating ventilation factor within Planet object
     input:
         * f_vent_param [string] - parameterization for ventilation coefficients
                                   for molecular and heat transport
@@ -363,10 +343,19 @@ def assign_f_vent(f_vent_param):
 
 #######################################################################
 # drag coefficient (C_D) functions
-# all take same input parameters for easy exchangabilty
+# all take same input parameters for easy exchangeability
 #######################################################################
 def calc_C_D_Loth(r,v,pl):
-    # C_D parameterization given in LoWo, eqs ()
+    '''
+    calculate drag coefficient of an oblate spheroid
+    C_D parameterization given in LoWo21, eqs (6)-(7), based on Loth et al. (2008)
+    inputs:
+        * r [m] - radius of drop
+        * v [m/s] - velocity of drop
+        * pl [Planet object] - describes atmosphere drop falling in
+    output:
+        * C_D [ ] - drag coefficient of drop
+    '''
     Re = calc_Re(r,v,pl)
     try:
         rat = calc_rat_Green(r,pl,v)
@@ -381,18 +370,26 @@ def calc_C_D_Loth(r,v,pl):
             C =1
     else:
         C = 1.
-    C_D =  24./Re*(1+0.15*Re**(229./333))+0.42/(1 + 4.25e4*Re**(-1.16))
-    C_D = C_D*C
+    C_D =  24./Re*(1+0.15*Re**(229./333))+0.42/(1 + 4.25e4*Re**(-1.16)) # Clift & Gauvin (1970)
+    # 229./333 = 0.687 repeating
+    # from Clift+ (2005) Table 5.1 or Loth+ (2008) eq (8) (latter doesn't show repeating)
+    C_D = C_D*C # correct C_D with shape factor
     return C_D
 
-C_D_Lorenz_ = lambda Re: (24./Re)*(1 + 0.197*Re**0.63 + 2.6e-4*Re**1.38)
-C_D_C6_ = lambda Re: 24./Re*(1+0.15*Re**0.687)+0.42/(1 + 4.25e4*Re**(-1.16))
+C_D_Lorenz_ = lambda Re: (24./Re)*(1 + 0.197*Re**0.63 + 2.6e-4*Re**1.38) # Lorenz (1993) sphere C_D
+C_D_C6_ = lambda Re: 24./Re*(1+0.15*Re**0.687)+0.42/(1 + 4.25e4*Re**(-1.16)) # Clift & Gauvin (1970) C_D for sphere
 
 def calc_C_D_Lorenz(r,v,pl):
     '''
-    calculate drag coefficient of a spheriod
+    calculate drag coefficient of an oblate spheroid
     parametrizes C_D from that of a sphere of eq volume linearly
-    source: Lorenz (1993)
+    source: Lorenz (1993) eq (4)
+    inputs:
+        * r [m] - radius of drop
+        * v [m/s] - velocity of drop
+        * pl [Planet object] - describes atmosphere drop falling in
+    output:
+        * C_D [ ] - drag coefficient of drop
     '''
     Re = calc_Re(r,v,pl)
     rat = calc_rat_Lorenz(r,pl,v)
@@ -401,26 +398,53 @@ def calc_C_D_Lorenz(r,v,pl):
 
 
 def calc_C_D_sphere(r,v,pl):
+    '''
+    calculate drag coefficient of a sphere following Clift & Gauvin (1970)
+    inputs:
+        * r [m] - radius of drop
+        * v [m/s] - velocity of drop
+        * pl [Planet object] - describes atmosphere drop falling in
+    output:
+        * C_D [ ] - drag coefficient of drop
+    '''
     Re = calc_Re(r,v,pl)
     C_D = C_D_C6_(Re)
     return C_D
 
 def calc_C_D_Holzer(r,v,atm):
+    '''
+    calculate drag coefficient of an oblate spheroid following Hölzer & Sommerfeld (2008) eq (9)
+    inputs:
+        * r [m] - radius of drop
+        * v [m/s] - velocity of drop
+        * pl [Planet object] - describes atmosphere drop falling in
+    output:
+        * C_D [ ] - drag coefficient of drop
+    '''
     Re = calc_Re(r,v,atm)
     rat = calc_rat_Green(r,atm,v)
     a = rat**(-1./3)*r
     ϕ_perp = r**2/a**2
-    ϕ = calc_SA_sphere(r)/calc_SA_spheriod(r,atm)
+    ϕ = calc_SA_sphere(r)/calc_SA_spheroid(r,atm)
     C_D = 8./Re/ϕ_perp**(0.5) + 16./Re/ϕ**(0.5) + 3./Re**0.5/ϕ**(0.75) +0.4210**(0.4*((-1*np.log10(ϕ))**0.2))/ϕ_perp
     return C_D
 
 def calc_C_D_Ganser_Newton(r,v,atm):
-    ϕ = calc_SA_sphere(r)/calc_SA_spheriod(r,atm)
+    '''
+    calculate drag coefficient of a sphere following Ganser (1993) eq (14)-(15)
+    inputs:
+        * r [m] - radius of drop
+        * v [m/s] - velocity of drop
+        * pl [Planet object] - describes atmosphere drop falling in
+    output:
+        * C_D [ ] - drag coefficient of drop
+    '''
+    ϕ = calc_SA_sphere(r)/calc_SA_spheroid(r,atm)
     C_D = 0.42*10**(1.8148*(-np.log10(ϕ))**0.5743)
     return C_D
 
 # parameterized C_D
-# Salman & Verba 1986
+# Salman & Verba (1986), eqs (5)-(8)
 a_ = lambda Ψ: 794.889*Ψ**4 - 2294.985*Ψ**3 + 2400.77*Ψ**2 - 1090.0719*Ψ + 211.686
 b_ = lambda Ψ: -320.757*Ψ**4 + 933.336*Ψ**3 - 973.461*Ψ**2 + 433.488*Ψ - 67
 c_ = lambda Ψ: (22.265*Ψ**4 - 35.241*Ψ**3 + 20.365*Ψ**2 - 4.131*Ψ + 0.304)**(-1)
@@ -428,10 +452,10 @@ C_D_ = lambda Re, Ψ: a_(Ψ)/Re + b_(Ψ)/np.sqrt(Re) + c_(Ψ)
 
 def calc_C_D_Salman(r,v,pl):
     '''
-    calculate drag coefficient of a spheriod
+    calculate drag coefficient of a spheroid
     parameterizes C_D as a function of deviation of surface area from that of a
     sphere and Re of sphere of eq volume
-    source: Salman & Verba (1986)
+    source: Salman & Verba (1986) eqs (5)-(8)
     inputs:
         * r [m] - radius of drop
         * v [m/s] - velocity of drop
@@ -440,7 +464,7 @@ def calc_C_D_Salman(r,v,pl):
         * C_D [] - drag coefficient of drop
     '''
     Re = calc_Re(r,v,pl)
-    Ψ = calc_SA_sphere(r)/calc_SA_spheriod(r,pl)
+    Ψ = calc_SA_sphere(r)/calc_SA_spheroid(r,pl)
     return C_D_(Re,Ψ)
 
 def calc_C_D_after(r,v,pl,f_rat=calc_rat_Green):
@@ -451,6 +475,10 @@ def calc_C_D_after(r,v,pl,f_rat=calc_rat_Green):
         * v [m/s] - raindrop velocity
         * pl [Planet object]
         * (optional) f_rat [function]
+    outputs:
+        * C_D [ ] - drag coefficient
+        * rat [ ] - axis ratio
+        * Re [ ] - Reynolds number
     '''
     rat = f_rat(r,pl,v)
     Re = calc_Re(r,v,pl)
@@ -475,7 +503,7 @@ def v_0(v,r,pl,f_rat,f_C_D):
         * difference between v predicted by given v and given v [m/s]
     '''
     try:
-        rat = f_rat(r,pl,v) # []
+        rat = f_rat(r,pl,v) # [ ]
     except:
         rat = 1. # fails sometimes when rat is very close to 1
     A = r**2*rat**(-2./3) # [m2] cross sectional area of oblate spheroid
@@ -533,6 +561,7 @@ def calc_v_Earth_Beard(r,pl,is_CC_correction=True):
 
     if is_CC_correction:
         # Cunningham-Stokes correction factor for slip drag
+        # following Beard (1976) eqs (3), (5)
         mfp_0 = 6.62e-8 # [m]
         η_0 = 1.818e-5 # [kg/m/s]
         p_0 = 1.01325e5 # [Pa]
@@ -546,8 +575,8 @@ def calc_v_Earth_Beard(r,pl,is_CC_correction=True):
         C_D = delta_ρ*pl.g/18./pl.η
         v = C_D*C_CS*d**2
     elif d < 1.07e-3:
-        C_D = 4./3*pl.ρ*delta_ρ*pl.g/pl.η**2 # [] drag coefficient
-        N_Da = C_D*d**3 # [] Davies number
+        C_D = 4./3*pl.ρ*delta_ρ*pl.g/pl.η**2 # [ ] drag coefficient
+        N_Da = C_D*d**3 # [ ] Davies number
         b = np.array([-0.318657e1,0.992696,-0.153193e-2,-0.987059e-3,-0.578878e-3,0.855176e-4,-0.327815e-5]) # fit coefficients
         X = np.log(N_Da)
         Y = 0
@@ -556,10 +585,10 @@ def calc_v_Earth_Beard(r,pl,is_CC_correction=True):
         N_Re = C_CS*np.exp(Y)
         v = pl.η*N_Re/pl.ρ/d
     else:
-        N_P = pl.c.σ(pl.T)**3*pl.ρ**2/pl.η**4/delta_ρ/pl.g # [] number
-        C_D = 4/3.*delta_ρ*pl.g/pl.c.σ(pl.T) # [] drag coefficient
+        N_P = pl.c.σ(pl.T)**3*pl.ρ**2/pl.η**4/delta_ρ/pl.g # [ ] number
+        C_D = 4/3.*delta_ρ*pl.g/pl.c.σ(pl.T) # [ ] drag coefficient
         b = np.array([-0.500015e1,0.523778e1,-0.204914e1,0.475294,-0.542819e-1,0.238449e-2]) # fit coefficients
-        Bo = C_D*d**2 # [] Bond number
+        Bo = C_D*d**2 # [ ] Bond number
         X = np.log(Bo*N_P**(1./6))
         Y = 0
         for i in range(6):
@@ -570,10 +599,20 @@ def calc_v_Earth_Beard(r,pl,is_CC_correction=True):
 
 ################################################################
 # functions to calculate ventilation coefficients
+# all functions take the same inputs so as to be used interchangeably
 ################################################################
 
 def calc_f_vent_as_1(r,v,pl):
     '''
+    set evaporation enhancement factor from ventilation
+    due to falling to 1 (i.e., neglect ventilation factor)
+    inputs:
+        * r [m] - equiv radius
+        * v [m/s] - velocity relative to air
+        * pl [Planet object]
+    output:
+        * f_vent_mol [ ] - ventilation factor for molecular transport
+        * f_vent_heat [ ] - ventilation factor for heat transport
     '''
     return np.array([1.,1.])
 
@@ -582,15 +621,15 @@ def calc_f_vent_mass(r,v,pl):
     calculate evaporation enhancement factor from ventilation
     due to falling
     assume f_vents for molecules and heat are the same
-    source: Pruppacher & Klett (2010) pg 443
-    LoWo eq ()
+    source: Pruppacher & Klett (2010) eqs (13-57), (13-58) pg 443
+    LoWo21 eqs (12)-(13)
     inputs:
         * r [m] - equiv radius
         * v [m/s] - velocity relative to air
         * pl [Planet object]
     output:
-        * f_vent_mol []
-        * f_vent_heat [] - assumed to be the same as f_vent_mol in this function
+        * f_vent_mol [ ] - ventilation factor for molecular transport
+        * f_vent_heat [ ] - ventilation factor for heat transport
     '''
     Re = calc_Re(r,v,pl)
     Sc = pl.η/pl.D_c/pl.ρ
@@ -606,20 +645,21 @@ def calc_f_vent_mass_heat(r,v,pl):
     calculate evaporation enhancement factor from ventilation
     due to falling
     f_vents for molecules and heat are calculated differently
-    source: Pruppacher & Klett (2010) pg 443
-    LoWo eq ()
+    source: Pruppacher & Klett (2010) eqs (13-57), (13-58) pg 443-444
+    (discussion of heat on pg 444)
+    LoWo21 eqs (12)-(14)
     inputs:
         * r [m] - equiv radius
         * v [m/s] - velocity relative to air
         * pl [Planet object]
     output:
-        * f_vent_mol []
-        * f_vent_heat [] - assumed to be the same as f_vent_mol in this function
+        * f_vent_mol [ ] - ventilation factor for molecular transport
+        * f_vent_heat [ ] - ventilation factor for heat transport
     '''
     Re = calc_Re(r,v,pl)
 
-    Sc = pl.η/pl.D_c/pl.ρ # [] Schmidt number
-    Pr = pl.η/pl.K*pl.c_p # [] Prandtl number
+    Sc = pl.η/pl.D_c/pl.ρ # [ ] Schmidt number
+    Pr = pl.η/pl.K*pl.c_p # [ ] Prandtl number
 
     X = Re**0.5*np.array([Sc,Pr])**(1./3)
     f = np.where(X<1.4,1 + 0.108*X**2,0.78 + 0.308*X)
@@ -633,6 +673,7 @@ def calc_f_vent_mass_heat(r,v,pl):
 def calc_r_max_CL17(pl):
     '''
     maximum stable raindrop size as (implicitly) calculated by Craddock & Lorenz (2017)
+    LoWo21 eq (25)
     input:
         * pl [Planet object] - describes planet environment
     output:
@@ -645,6 +686,7 @@ def calc_r_max_fb_req(pl):
     '''
     maximum stable raindrop from force balance (fb)
     ℓ_max = 2π*req
+    LoWo21 eq (22)
     inputs:
         * pl [Planet object] - describes planet environment
     output:
@@ -671,6 +713,7 @@ def calc_r_max_fb_a(pl):
     '''
     maximum stable raindrop from force balance (fb)
     ℓ_max = 2π*a
+    LoWo21 eq (22)
     inputs:
         * pl [Planet object] - describes planet environment
     output:
@@ -682,6 +725,7 @@ def calc_r_max_RT(pl,ℓ_div_a):
     '''
     maximum stable raindrop from Rayleigh Taylor instablity
     ℓ_max = ℓ_div_a*a
+    LoWo21 eq (21)
     inputs:
         * pl [Planet object]
         * ℓ_div_a [] - factor times a to give ℓ_max
@@ -689,7 +733,7 @@ def calc_r_max_RT(pl,ℓ_div_a):
         * r_max [m] - maximum stable raindrop equivalent radius
     '''
     a_max = 1./ℓ_div_a*np.pi*np.sqrt(pl.c.σ(pl.T)/pl.g/(pl.c.ρ(pl.T) - pl.ρ)) # [m]
-    rat = calc_rat_Green_from_a(a_max,pl) # [] numerically calculate b/a, knowing a
+    rat = calc_rat_Green_from_a(a_max,pl) # [ ] numerically calculate b/a, knowing a
     r_max = a_max*rat**(1./3) # [m] from Green, b/a = (r_eq/a)^3
     return r_max
 
@@ -697,6 +741,7 @@ def calc_r_max_RT_r(pl,ℓ_div_r):
     '''
     maximum stable raindrop from Rayleigh Taylor instablity
     ℓ_max = ℓ_div_r*r
+    LoWo21 eq (21)
     inputs:
         * pl [Planet object]
         * ℓ_div_r [] - factor times r to give ℓ_max
@@ -734,6 +779,7 @@ def calc_r_max_P20(pl):
     '''
     calculate maximum stable raindrop size following Palumbo et al. (2020)
     We = 4, C_D = 1, b/a = 1
+    LoWo21 eq (24)
     input:
         * pl [Planet object] - describes planet environment
     output:

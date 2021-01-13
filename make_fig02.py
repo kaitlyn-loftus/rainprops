@@ -1,6 +1,9 @@
+################################################################
+# make LoWo21 Figure 2
+# r_min, fraction raindrop mass evaporated as functions of RH
+################################################################
 import numpy as np
 import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 # load results
 dir = 'output/fig02/'
@@ -13,21 +16,22 @@ r_mins = np.load(dir+'r_mins.npy')
 i_RH75 = 29 # index for RH=0.75
 
 # make figure 2
+# only put colorbar on lower panel, still line up x-axes
 f, axs = plt.subplots(2,2,sharex='col',figsize=(6,7),gridspec_kw={'height_ratios': [1, 3],'width_ratios':[20,1]})
 plt.subplots_adjust(hspace=0.05)
 axs[0,0].set_xscale('log')
 axs[1,0].set_xlabel(r'$r_0$ [mm]')
-axs[1,0].set_ylabel('surface RH []')
+axs[1,0].set_ylabel('surface RH [ ]')
 axs[0,0].tick_params(right=True,which='both')
 axs[1,0].tick_params(right=True,which='both')
 axs[1,0].tick_params(top=True,which='both')
 axs[0,0].tick_params(top=True,which='both')
-axs[0,0].set_ylabel('fraction mass \n evaporated []')
+axs[0,0].set_ylabel('fraction mass \n evaporated [ ]')
 axs[0,0].set_xlim(r0grid[0,0]*1e3,r0grid[0,-1]*1e3)
 axs[0,0].set_ylim(-0.04,1.04)
 levels_smooth = np.linspace(0,1,250)
 cmesh = axs[1,0].contourf(r0grid*1e3, RHgrid,m_frac_evap,cmap=plt.cm.binary,vmin=0,vmax=1,levels=levels_smooth)
-for c in cmesh.collections:
+for c in cmesh.collections: # fix ugly rendering with PDF and high level n
     c.set_edgecolor('face')
     c.set_linewidth(1e-5)
 
@@ -36,7 +40,7 @@ cb.solids.set_edgecolor('face')
 axs[0,1].axis('off')
 cb.solids.set_edgecolor('face')
 cb.solids.set_linewidth(1e-5)
-cb.set_label('fraction mass evaporated []')
+cb.set_label('fraction mass evaporated [ ]')
 cb.set_ticks([0,0.1,0.25,0.5,0.75,1])
 axs[1,0].axhline(0.75,lw=0.5,ls='--',c='plum')
 axs[1,0].plot(r_mins*1e3,RHs,lw=3,c='darkviolet',zorder=10)

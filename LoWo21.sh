@@ -2,8 +2,10 @@
 echo Results for
 echo "'The Physics of Falling Raindrops in Diverse Planetary Atmospheres'"
 echo "Loftus and Wordsworth (202-)"
+echo "JGR: Planets"
+echo "DOI: --"
 IS_CALCULATE=false
-# IS_CALCULATE=true # uncomment to re-generate results 
+# IS_CALCULATE=true # uncomment to re-generate results
 if [[ "$IS_CALCULATE" == "true" ]]; then
     echo
     echo CALCULATIONS FOR FIGURES
@@ -61,6 +63,6 @@ echo making figures S5-S6
 python val_L93.py
 echo completed figures S5-S6
 
-echo making figures S7-S8
+echo making figures S7-S8, table S1
 python val_G08.py
-echo completed figures S7-S8
+echo completed figures S7-S8, table S1
