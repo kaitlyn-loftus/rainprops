@@ -42,16 +42,12 @@ def calc_drdz_dTdropdz(z,rT,pl,w=0):
         v = -1e-9
     # calculate ventilation coefficients
     f = pl.f_vent(rT[0],v,pl)
-    # calc rate of change of drop mass with time
-    dmdt = 4.*np.pi*rT[0]*pl.D_c*f[0]*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(rT[1])/pl.c.R/rT[1]) # ~ LoWo21 eq (10)
-    # convert dmdt to drdt using chain rule
-    drdt = dmdt/(4.*np.pi*rT[0]**2*pl.c.ρ(rT[1]))
+    # calc drdt
+    drdt = pl.D_c*f[0]/pl.c.R/rT[0]/pl.c.ρ(rT[1])*(pl.p_c/pl.T - pl.c.p_sat(rT[1])/rT[1]) # LoWo21 eq (10)
     # convert drdt to drdz using chain rule
     drdz = drdt*1./v # LoWo21 eq (15)
-    # calc mass of drop
-    m = 4./3.*np.pi*rT[0]**3*pl.c.ρ(rT[1]) # [kg]
     # calc rate of change of drop T with time
-    dTdt = 1./m/pl.c.c_p*(pl.c.L(rT[1])*dmdt - 4.*np.pi*rT[0]*pl.K*f[1]*(rT[1] - pl.T)) # ~ LoWo21 eq (11)
+    dTdt = 3./rT[0]/pl.c.c_p*(pl.c.L(rT[1])*drdt - pl.K*f[1]/rT[0]/pl.c.ρ(rT[1])*(rT[1] - pl.T)) # LoWo21 eq (11)
     # convert dTdt to dTdz via chain rule
     dTdz = dTdt*1./v
     # return appropriate derivatives
@@ -93,7 +89,7 @@ def calc_δ_simple(pl,f):
     return δ
 
 
-def calc_dtdz_drdz(z,r,pl,w):
+def calc_dtdz_drdz(z,tr,pl,w):
     '''
     differential equations governing the evaporation of the falling raindrop
     assume equilibrium T_drop value (solved numerically)
@@ -108,13 +104,13 @@ def calc_dtdz_drdz(z,r,pl,w):
         * dtdz [s/m]
         * drdz [m/m]
     '''
-    if r[1]<=1e-7: # integration should stop before here, but catch odd solver attempts
-        r[1] = 1e-7
+    if tr[1]<=1e-7: # integration should stop before here, but catch odd solver attempts
+        tr[1] = 1e-7
     pl.z2x4drdz(z) # set planetary conditions to given altitude z
-    v = w-1*drop_prop.calc_v(r[1],pl,pl.f_rat,pl.f_C_D) # LoWo21 eq (9)
+    v = w-1*drop_prop.calc_v(tr[1],pl,pl.f_rat,pl.f_C_D) # LoWo21 eq (9)
     if v>-1e-9:
         v = -1e-9
-    f = pl.f_vent(r[1],v,pl) # [ ] ventilation factor
+    f = pl.f_vent(tr[1],v,pl) # [ ] ventilation factor
     # calculate T_drop
     if pl.T-pl.T_LCL<=0.:
         δ = 0.
@@ -122,10 +118,7 @@ def calc_dtdz_drdz(z,r,pl,w):
         δ = brentq(δ0,1e-6,pl.T-pl.T_LCL,args=(pl,f)) # LoWo21 eq (17)
         # δ = calc_δ_simple(pl,f)
     T_drop = pl.T - δ # [K]
-    # calc rate of change of drop mass with time
-    dmdt = 4.*np.pi*r[1]*pl.D_c*f[0]*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(T_drop)/pl.c.R/T_drop) # ~ LoWo21 eq (10)
-    # convert dmdt to drdt using chain rule
-    drdt = dmdt/(4.*np.pi*r[1]**2*pl.c.ρ(T_drop))
+    drdt = pl.D_c*f[0]/pl.c.ρ(T_drop)/tr[1]/pl.c.R*(pl.p_c/pl.T - pl.c.p_sat(T_drop)/T_drop) # LoWo21 eq (10)
     drdz = drdt*1./v # LoWo21 eq (15)
     # return appropriate derivatives
     return np.array([1./v,drdt*1./v])
@@ -155,12 +148,10 @@ def calc_dtdz_drdz_dTdz(z,trT,pl,w):
     if v>-1e-9: # integration should stop before here, but catch odd solver attempts
         v = -1e-9
     f = pl.f_vent(trT[1],v,pl) # [ ] ventilation factor
-    dmdt = 4.*np.pi*trT[1]*pl.D_c*f[0]*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(trT[2])/pl.c.R/trT[2]) # ~ LoWo21 eq (10)
-    drdt = dmdt/(4.*np.pi*trT[1]**2*pl.c.ρ(trT[2])) # chain rule
+    drdt = pl.D_c*f[0]/pl.c.R/trT[1]/pl.c.ρ(trT[2])*(pl.p_c/pl.T - pl.c.p_sat(trT[2])/trT[2]) # LoWo21 eq (10)
     drdz = drdt*1./v # LoWo21 eq (15)
-    m = 4./3.*np.pi*trT[1]**3*pl.c.ρ(trT[2]) # [kg] drop mass
-    dTdt = 1./m/pl.c.c_p*(pl.c.L(trT[2])*dmdt - 4.*np.pi*trT[1]*pl.K*f[1]*(trT[2] - pl.T)) # ~ LoWo21 eq (11)
-    dTdz = dTdt*1./v
+    dTdt = 3./trT[1]/pl.c.c_p*(pl.c.L(trT[2])*drdt - pl.K*f[1]/trT[1]/pl.c.ρ(trT[2])*(trT[2] - pl.T)) # LoWo21 eq (11)
+    dTdz = dTdt*1./v # chain rule
     # return appropriate derivatives
     return np.array([1./v,drdz,dTdz])
 
@@ -198,10 +189,8 @@ def calc_drzvdt_w_a(t,rzvT,pl):
 
     f = pl.f_vent(rzvT[0],rzvT[2],pl) # [ ] ventilation factor
 
-    dmdt = 4.*np.pi*rzvT[0]*pl.D_c*f[0]*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(rzvT[3])/pl.c.R/rzvT[3]) # ~ LoWo21 eq (10)
-    drdt = dmdt/(4.*np.pi*rzvT[0]**2*pl.c.ρ(rzvT[3]))
-    m = 4./3.*np.pi*rzvT[0]**3*pl.c.ρ(rzvT[3]) # [kg], raindrop mass
-    dTdt = 1./m/pl.c.c_p*(pl.c.L(rzvT[3])*dmdt - 4.*np.pi*rzvT[0]*pl.K*f[1]*(rzvT[3] - pl.T)) # ~ LoWo21 eq (11)
+    drdt = pl.D_c*f[0]/rzvT[0]/pl.c.ρ(rzvT[3])/pl.c.R*(pl.p_c/pl.T - pl.c.p_sat(rzvT[3])/rzvT[3]) # LoWo21 eq (10)
+    dTdt = 3./rzvT[0]/pl.c.c_p*(pl.c.L(rzvT[3])*drdt - pl.K*f[1]/rzvT[0]/pl.c.ρ(rzvT[3])*(rzvT[3] - pl.T)) # LoWo21 eq (11)
     # calculate raindrop axis ratio [ ]
     try:
         rat = pl.f_rat(rzvT[0],pl,rzvT[2])
@@ -276,11 +265,9 @@ def calc_dtdz_drdz_3pl(z,trT,pl,pl_F,pl_v,w):
         v = -1e-9
     f = pl.f_vent(trT[1],v,pl_v) # [ ] ventilation factor, calc with pl_v
     # calc drdt and dTdt with pl
-    dmdt = 4.*np.pi*trT[1]*D_c*f[0]*(pl.p_c/pl.c.R/pl.T - pl.c.p_sat(trT[2])/pl.c.R/trT[2]) # ~ LoWo21 eq (10)
-    drdt = dmdt/(4.*np.pi*trT[1]**2*pl.c.ρ(trT[2])) # chain rule
+    drdt = D_c*f[0]/pl.c.R/trT[1]/pl.c.ρ(trT[2])*(pl.p_c/pl.T - pl.c.p_sat(trT[2])/trT[2]) # LoWo21 eq (10)
     drdz = drdt*1./v # LoWo21 eq (15)
-    m = 4./3.*np.pi*trT[1]**3*pl.c.ρ(trT[2]) # [kg] raindrop mass
-    dTdt = 1./m/pl.c.c_p*(pl.c.L(trT[2])*dmdt - 4.*np.pi*trT[1]*K*f[1]*(trT[2] - pl.T)) # ~ LoWo21 eq (11)
+    dTdt = 3./trT[1]/pl.c.c_p*(pl.c.L(trT[2])*drdt - K*f[1]/trT[1]/pl.c.ρ(trT[2])*(trT[2] - pl.T)) # LoWo21 eq (11)
     dTdz = dTdt*1./v # chain rule
     # return appropriate derivatives
     return np.array([1./v,drdt*1./v,dTdz])
@@ -324,7 +311,8 @@ def calc_dtdz_dm12dt_dTdropdt(t,zm1m2T,pl,w=0):
         r = 1e-7
     pl.z2x4drdz_12(zm1m2T[0]) # set planetary conditions to given altitude z
 
-    # ~ LoWo21 eq (10); follow Graves+ (2008) for accounting for 2 species
+    # equivalent to LoWo21 eq (10)
+    # follow Graves+ (2008) for accounting for 2 species
     if pl.is_Graves:
         # Graves+ (2008) eq (1)
         # difference from LoWo21 is Graves+ (2008) approxes conversion of ρ to p with an avg air-raindrop T instead of separate Ts
@@ -346,7 +334,7 @@ def calc_dtdz_dm12dt_dTdropdt(t,zm1m2T,pl,w=0):
     # account for f_vent_mol in dmdts
     dm1dt *= f1[0]
     dm2dt *= f2[0]
-    # ~ LoWo21 eq (11); Graves+ (2008) eq (2); account for both species
+    # equivalent to LoWo21 eq (11); Graves+ (2008) eq (2); account for both species
     dTdt = 1./m/c_pℓ*(pl.c1.L(zm1m2T[3])*dm1dt + pl.c2.L(zm1m2T[3])*dm2dt- 4.*np.pi*r*pl.K*f1[1]*(zm1m2T[3] - pl.T))
     # return appropriate derivatives
     return np.array([v,dm1dt,dm2dt,dTdt])
