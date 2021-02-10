@@ -21,7 +21,7 @@ R_p = 1. # [R_earth]
 M_p = 1. # [M_earth]
 Earth = Planet(R_p,T_surf,p_surf,X,'h2o',RH_surf,M_p)
 
-# ANCIENT MARS
+# EARLY MARS
 X = np.zeros(5) # composition
 X[4] = 1. # f_CO2  [mol/mol]
 T_surf = 290. # [K] ???
@@ -30,7 +30,6 @@ RH_surf = 0.75 # [ ] ???
 R_p = 0.532 # [R_earth]
 M_p = 0.107 # [M_earth]
 Mars = Planet(R_p,T_surf,p_surf,X,'h2o',RH_surf,M_p)
-print('Mars g',Mars.g)
 
 # gas giant compositions from Leconte et al. (2017)
 # and cloud levels from Carlson et al. (1988)
@@ -45,7 +44,6 @@ RH_LCL = 1. # [ ]
 R_p = 11.2089 # [R_earth]
 M_p = 317.8 # [M_earth]
 Jupiter = Planet(R_p,T_LCL,p_LCL,X,'h2o',RH_LCL,M_p)
-print('Jupiter g',Jupiter.g)
 
 # SATURN
 X = np.zeros(5) # composition
@@ -57,7 +55,6 @@ RH_LCL = 1. # [ ]
 R_p = 9.449 # [R_earth]
 M_p = 95.16 # [M_earth]
 Saturn = Planet(R_p,T_LCL,p_LCL,X,'h2o',RH_LCL,M_p)
-print('Saturn g',Saturn.g)
 
 # K2-18b
 X = np.zeros(5) # composition
@@ -69,7 +66,6 @@ RH_LCL = 1. # [ ]
 R_p = 2.610 # [R_earth] Benneke et al. (2019)
 M_p = 8.63 # [M_earth] Cloutier et al. (2019) +- 1.35 M_earth
 K2_18b = Planet(R_p,T_LCL,p_LCL,X,'h2o',RH_LCL,M_p)
-print('K2-18b g',K2_18b.g)
 
 
 planets = [Earth,Mars,Jupiter,Saturn,K2_18b]

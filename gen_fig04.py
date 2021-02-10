@@ -71,7 +71,7 @@ np.save(dir+'m_frac_evap',m_frac_evap)
 # panels (c) and (d)
 
 # set up broad planetary conditions
-# n_Xs*n_var*n_ℓ = 90 different planetary conditions
+# n_Xs*n_var*n_var_char = 90 different planetary conditions
 X_H2 = np.zeros(5) # composition
 X_N2 = np.zeros(5) # composition
 X_CO2 = np.zeros(5) # composition
