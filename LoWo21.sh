@@ -19,7 +19,7 @@ if [[ "$IS_CALCULATE" == "true" ]]; then
 
     echo
     echo CALCULATIONS FOR TABLES
-    for i in {2..3}; do
+    for i in {1..3}; do
         echo calculating table ${i}
         python gen_tab0${i}.py
         echo completed table ${i}
