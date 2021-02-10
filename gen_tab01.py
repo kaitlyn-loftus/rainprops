@@ -154,5 +154,5 @@ tab01_list.append(['broad-max','LCL',400,'%.3E'%1e7,RH,25,'%.3E'%(np.amax(H_LCLs
 
 
 # convert to dataframe to easily save to csv file
-tab01 = pd.DataFrame(tab01_list,columns=['name','z_ref','T','p_dry','RH','g','H','f_h2','f_he','f_n2','f_o2','f_co2'])
+tab01 = pd.DataFrame(tab01_list,columns=['name','z_ref','T(z_ref) [K]','p_dry(z_ref) [Pa]','RH(z_ref) [ ]','g [m/s]','H_LCL [m]','f_h2 [mol/mol]','f_he [mol/mol]','f_n2 [mol/mol]','f_o2 [mol/mol]','f_co2 [mol/mol]'])
 tab01.to_csv('tabs/tab01.csv',index=False)
