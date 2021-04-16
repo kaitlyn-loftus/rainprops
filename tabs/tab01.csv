@@ -1,4 +1,4 @@
-name,z_ref,T(z_ref) [K],p_dry(z_ref) [Pa],RH(z_ref) [ ],g [m/s],H_LCL [m],f_h2 [mol/mol],f_he [mol/mol],f_n2 [mol/mol],f_o2 [mol/mol],f_co2 [mol/mol]
+name,z_ref,T(z_ref) [K],p_dry(z_ref) [Pa],RH(z_ref) [ ],g [m/s2],H_LCL [m],f_h2 [mol/mol],f_he [mol/mol],f_n2 [mol/mol],f_o2 [mol/mol],f_co2 [mol/mol]
 Earth-like,surface,300.0,1.01325E+05,0.75,9.820E+00,8.969E+03,0,0.0,1,0.0,0
 Earth,surface,290.0,1.01325E+05,0.75,9.820E+00,8.406E+03,0,0.0,0.8,0.2,0
 early Mars,surface,290.0,2.000E+05,0.75,3.712E+00,1.452E+04,0,0.0,0,0.0,1
